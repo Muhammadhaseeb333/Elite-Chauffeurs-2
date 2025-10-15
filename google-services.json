@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "962290238047",
+    "project_id": "elitechauffeurs-7840a",
+    "storage_bucket": "elitechauffeurs-7840a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962290238047:android:d4c53123c4d65b9134d1ea",
+        "android_client_info": {
+          "package_name": "com.InDrive.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "962290238047-5c3aretft0quspr0sfnocsc5fq5nppdf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.InDrive.app",
+            "certificate_hash": "7c2270664739ce3b80710cb65c9ec0b1f5b72a47"
+          }
+        },
+        {
+          "client_id": "962290238047-co99csuurji4b979ucei2sag075km1sf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiMUzK6Bzmhdj7LfMcX7rzvsr9kIDPXtU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "962290238047-co99csuurji4b979ucei2sag075km1sf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "962290238047-a7bl1klkhtqf0at9njon5r4l3qkbo7it.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.company.driverapp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962290238047:android:cefe7da5bb54848f34d1ea",
+        "android_client_info": {
+          "package_name": "com.company.driverapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "962290238047-co99csuurji4b979ucei2sag075km1sf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiMUzK6Bzmhdj7LfMcX7rzvsr9kIDPXtU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "962290238047-co99csuurji4b979ucei2sag075km1sf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "962290238047-a7bl1klkhtqf0at9njon5r4l3qkbo7it.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.company.driverapp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Special signup function
+    function isSignupRequest() {
+      return request.auth == null && 
+             request.resource.data.uid != null &&
+             request.resource.data.email != null;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow create: if isSignupRequest() || 
+                    (isAuthenticated() && userId == request.auth.uid);
+      allow read, update: if isOwner(userId);
+      allow delete: if isAdmin();
+    }
+
+    // Rides collections
+    match /rides/{rideId} {
+      allow create: if isAuthenticated()
+                    && request.resource.data.pickupLocation != null
+                    && request.resource.data.dropoffLocation != null
+                    && request.resource.data.price != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status in ["booked", "pending"]
+                    && request.resource.data.paymentId != null;
+
+      allow read: if (resource.data.userId != null && isOwner(resource.data.userId)) || isAdmin();
+
+      allow update: if (
+        (resource.data.userId != null && isOwner(resource.data.userId) && (
+          (request.resource.data.status == "cancelled" && 
+           request.resource.data.cancellationTime != null &&
+           request.resource.data.cancellationReason != null) ||
+          (request.resource.data.status == resource.data.status)
+        )) || isAdmin()
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /cancelledRides/{rideId} {
+      allow create: if isAuthenticated()
+                    && request.resource.data.pickupLocation != null
+                    && request.resource.data.dropoffLocation != null
+                    && request.resource.data.price != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == "cancelled"
+                    && request.resource.data.cancellationTime != null
+                    && request.resource.data.cancellationReason != null;
+
+      allow read: if (resource.data.userId != null && isOwner(resource.data.userId)) || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    match /pastRides/{rideId} {
+      allow create: if isAuthenticated()
+                    && request.resource.data.pickupLocation != null
+                    && request.resource.data.dropoffLocation != null
+                    && request.resource.data.price != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == "completed"
+                    && request.resource.data.completedAt != null;
+
+      allow read: if (resource.data.userId != null && isOwner(resource.data.userId)) || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // Payment collections
+    match /confirmedPayments/{paymentId} {
+      allow read: if (resource.data.userId != null && isOwner(resource.data.userId)) || isAdmin();
+      allow create: if isAuthenticated()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.amountPaid != null
+                    && request.resource.data.paymentId != null
+                    && request.resource.data.status == "booked";
+      allow update, delete: if isAdmin();
+    }
+
+    match /paymentIntents/{paymentId} {
+      allow read: if (resource.data.userId != null && isOwner(resource.data.userId)) || isAdmin();
+      allow create: if isAuthenticated()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.amount != null;
+      allow update, delete: if isAdmin();
+    }
+
+    // Public collections
+    match /promotions/{promoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /tours/{tourId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

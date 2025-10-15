@@ -1,0 +1,35 @@
+{
+    "build": {
+      "development": {
+        "distribution": "internal",
+        "android": {
+          "gradleCommand": ":app:assembleDebug"
+        },
+        "env": {
+          "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+        }
+      },
+      "preview": {
+        "distribution": "internal",
+        "android": {
+          "gradleCommand": ":app:assembleRelease",
+          "buildType": "apk"
+        },
+        "env": {
+          "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+        }
+      },
+      "production": {
+        "distribution": "store",
+        "android": {
+          "gradleCommand": ":app:assembleRelease"
+        },
+        "env": {
+          "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+        }
+      }
+    },
+    "cli": {
+      "appVersionSource": "remote"
+    }
+  }

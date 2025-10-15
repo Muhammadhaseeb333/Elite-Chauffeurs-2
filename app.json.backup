@@ -115,8 +115,7 @@
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "static",
-            "deploymentTarget": "16.0"
+            "useFrameworks": "static"
           },
           "android": {
             "compileSdkVersion": 34,
@@ -133,6 +132,9 @@
       ],
       [
         "@react-native-firebase/app"
+      ],
+      [
+        "@react-native-firebase/messaging"
       ],
       "expo-font"
     ],
