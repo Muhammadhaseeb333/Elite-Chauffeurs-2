@@ -62,8 +62,14 @@ export default function PaymentScreen() {
 
     const { error } = await initPaymentSheet({
       paymentIntentClientSecret: result.clientSecret,
-      merchantDisplayName: 'RideBookingApp',
+      merchantDisplayName: 'Elite Chauffeurs',
       allowsDelayedPaymentMethods: false,
+      // ✅ ESSENTIAL: Return URL for iOS redirects (matches your app scheme)
+      returnURL: 'indrive://stripe-redirect',
+      // Optional: Add default billing details
+      defaultBillingDetails: {
+        name: 'Customer Name', // You can customize this later
+      }
     });
 
     if (error) {
@@ -131,36 +137,35 @@ export default function PaymentScreen() {
       }
   
       // Prepare ride data with payment info
-// Update the rideData object
-const rideData = {
-  ...receiptData,
-  cost: finalFare,
-  paymentId: paymentIntentId,
-  status: STATUS_CODE.pending,
-  createdAt: serverTimestamp(),
-  userId: auth.currentUser.uid,
-  customerName,
-  customerEmail,
-  customerPhone,
-  date: receiptData.pickupDate,
-  time: receiptData.pickUpTime,
-  price: finalFare,
-  originalPrice: receiptData.originalPrice || finalFare,
-  discountApplied: receiptData.discountApplied || 0,
-  discountType: receiptData.discountType || null,
-  discountCode: receiptData.discountCode || null,
-  driverAssigned: false,
-  vehicleDetails: receiptData.car || null,
-  pickupLocation: receiptData.pickupLocation || 'Not specified',
-  dropoffLocation: receiptData.dropoffLocation || 'Not specified',
-  tripType: receiptData.tripType || 'transfer',
-  companyId: "",
-  // These are now top-level fields
-  additionalInfoFlightNo: receiptData.additionalInfoFlightNo || "",
-  additionalInfoLuggage: Number(receiptData.additionalInfoLuggage) || 0,
-  additionalInfoOrderNotes: receiptData.additionalInfoOrderNotes || "",
-  additionalInfoPassengers: Number(receiptData.additionalInfoPassengers) || 0
-};
+      const rideData = {
+        ...receiptData,
+        cost: finalFare,
+        paymentId: paymentIntentId,
+        status: STATUS_CODE.pending,
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser.uid,
+        customerName,
+        customerEmail,
+        customerPhone,
+        date: receiptData.pickupDate,
+        time: receiptData.pickUpTime,
+        price: finalFare,
+        originalPrice: receiptData.originalPrice || finalFare,
+        discountApplied: receiptData.discountApplied || 0,
+        discountType: receiptData.discountType || null,
+        discountCode: receiptData.discountCode || null,
+        driverAssigned: false,
+        vehicleDetails: receiptData.car || null,
+        pickupLocation: receiptData.pickupLocation || 'Not specified',
+        dropoffLocation: receiptData.dropoffLocation || 'Not specified',
+        tripType: receiptData.tripType || 'transfer',
+        companyId: "",
+        // These are now top-level fields
+        additionalInfoFlightNo: receiptData.additionalInfoFlightNo || "",
+        additionalInfoLuggage: Number(receiptData.additionalInfoLuggage) || 0,
+        additionalInfoOrderNotes: receiptData.additionalInfoOrderNotes || "",
+        additionalInfoPassengers: Number(receiptData.additionalInfoPassengers) || 0
+      };
   
       // Save to the correct collection
       const targetCollection = receiptData.collectionType || 

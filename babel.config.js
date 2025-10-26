@@ -12,7 +12,7 @@ module.exports = function (api) {
           },
         },
       ],
-      // 👇 Required for Reanimated (must be last in the list)
+      // ⚠️ This MUST be the last plugin for Reanimated to work properly
       'react-native-reanimated/plugin',
     ],
   };

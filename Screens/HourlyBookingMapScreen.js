@@ -113,6 +113,8 @@ export default function HourlyBookingMapScreen({ navigation }) {
   const [manualHours, setManualHours] = useState("4");
   const [isEditingHours, setIsEditingHours] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [pickupFocused, setPickupFocused] = useState(false);
+  const [activeInput, setActiveInput] = useState(null); // Track which input is active
 
   // Center helper
   const centerAt = (lat, lng, delta = 0.012) => {
@@ -166,6 +168,7 @@ export default function HourlyBookingMapScreen({ navigation }) {
 
       autoCompleteRef.current?.blur?.();
       Keyboard.dismiss();
+      setActiveInput(null);
     } catch {
       Alert.alert("Error", "Failed to select location. Please try again.");
     } finally {
@@ -258,13 +261,14 @@ export default function HourlyBookingMapScreen({ navigation }) {
     );
   };
 
-  const autoStyles = {
-    container: styles.autoCompleteContainer,
-    textInput: styles.autoCompleteTextInput,
-    listView: styles.autoCompleteListView,
+  // Dynamic styles based on active input
+  const getAutoStyles = () => ({
+    container: [styles.autoCompleteContainer, activeInput === 'pickup' && styles.activeAutoCompleteContainer],
+    textInput: [styles.autoCompleteTextInput, pickupFocused && styles.textInputFocusedGold],
+    listView: [styles.autoCompleteListView, activeInput === 'pickup' && styles.activeAutoCompleteListView],
     row: styles.autoCompleteRow,
     separator: styles.autoCompleteSeparator,
-  };
+  });
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
@@ -274,14 +278,16 @@ export default function HourlyBookingMapScreen({ navigation }) {
         initialRegion={initialRegion}
         provider={PROVIDER_GOOGLE}
         customMapStyle={DARK_MAP_STYLE}
-        // ✅ Always interactive on both platforms
         scrollEnabled
         zoomEnabled
         rotateEnabled
         pitchEnabled
         toolbarEnabled={false}
+        onMapReady={() => console.log("Map is ready")}
+        onError={(error) => console.log("Map error:", error)}
         onTouchStart={() => {
           autoCompleteRef.current?.blur?.();
+          setActiveInput(null);
         }}
       >
         {pickupLocation && (
@@ -299,56 +305,70 @@ export default function HourlyBookingMapScreen({ navigation }) {
       {/* Panel: allow touches outside to hit the map */}
       <View style={styles.inputContainer} pointerEvents="box-none">
         <View style={styles.searchPanel} pointerEvents="auto">
-          <View style={styles.fieldLabelWrap}>
-            <Text style={styles.fieldLabel}>Pickup</Text>
-          </View>
+          {/* Pickup Location with dynamic z-index wrapper */}
+          <View style={[
+            styles.autocompleteWrapper, 
+            activeInput === 'pickup' && styles.activeAutocompleteWrapper
+          ]}>
+            <View style={styles.fieldLabelWrap}>
+              <Text style={styles.fieldLabel}>Pickup</Text>
+            </View>
 
-          <GooglePlacesAutocomplete
-            ref={autoCompleteRef}
-            placeholder="Enter Pickup Location"
-            fetchDetails
-            minLength={2}
-            debounce={300}
-            timeout={15000}
-            onPress={handleLocationSelect}
-            keyboardShouldPersistTaps="always"
-            query={{
-              key: GOOGLE_MAPS_API_KEY,
-              language: "en",
-              types: "geocode",
-              components: "country:ie" 
-            }}
-            GooglePlacesDetailsQuery={{
-              fields: ["geometry", "name", "formatted_address", "types"],
-            }}
-            enablePoweredByContainer={false}
-            currentLocation={false}
-            predefinedPlaces={[]}
-            textInputProps={{
-              onChangeText: setPickupText,
-              placeholderTextColor: COLORS.muted,
-              returnKeyType: "search",
-              value: pickupText,
-            }}
-            styles={autoStyles}
-            listEmptyComponent={<View />}
-            renderRightButton={() => (
-              <View style={styles.rightSide}>
-                {isLoading ? <ActivityIndicator style={{ marginRight: 6 }} color={COLORS.gold} /> : null}
-                {pickupText?.length ? (
-                  <TouchableOpacity
-                    onPress={clearPickup}
-                    style={styles.clearBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={20} color={COLORS.muted} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            )}
-            renderRow={renderSuggestionRow}
-            onFail={(e) => console.log("Hourly pickup places error:", e)}
-          />
+            <GooglePlacesAutocomplete
+              ref={autoCompleteRef}
+              placeholder="Enter Pickup Location"
+              fetchDetails
+              minLength={2}
+              debounce={300}
+              timeout={15000}
+              onPress={handleLocationSelect}
+              keyboardShouldPersistTaps="always"
+              query={{
+                key: GOOGLE_MAPS_API_KEY,
+                language: "en",
+                types: "geocode",
+                components: "country:ie" 
+              }}
+              GooglePlacesDetailsQuery={{
+                fields: ["geometry", "name", "formatted_address", "types"],
+              }}
+              enablePoweredByContainer={false}
+              currentLocation={false}
+              predefinedPlaces={[]}
+              textInputProps={{
+                onChangeText: setPickupText,
+                placeholderTextColor: COLORS.muted,
+                returnKeyType: "search",
+                value: pickupText,
+                onFocus: () => {
+                  setPickupFocused(true);
+                  setActiveInput('pickup');
+                },
+                onBlur: () => {
+                  setPickupFocused(false);
+                  if (activeInput === 'pickup') setActiveInput(null);
+                },
+              }}
+              styles={getAutoStyles()}
+              listEmptyComponent={<View />}
+              renderRightButton={() => (
+                <View style={styles.rightSide}>
+                  {isLoading ? <ActivityIndicator style={{ marginRight: 6 }} color={COLORS.gold} /> : null}
+                  {pickupText?.length ? (
+                    <TouchableOpacity
+                      onPress={clearPickup}
+                      style={styles.clearBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle" size={20} color={COLORS.muted} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )}
+              renderRow={renderSuggestionRow}
+              onFail={(e) => console.log("Hourly pickup places error:", e)}
+            />
+          </View>
 
           {/* Date & Time (inside panel) */}
           <View style={styles.dateTimeRow}>
@@ -508,7 +528,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   map: { 
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0b0d10', // 👈 dark bg behind tiles
+    backgroundColor: '#0b0d10',
+    zIndex: 0,
   },
 
   // scrim
@@ -560,6 +581,14 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: 14 } }),
   },
 
+  // Autocomplete wrappers with dynamic z-index
+  autocompleteWrapper: {
+    zIndex: 1,
+  },
+  activeAutocompleteWrapper: {
+    zIndex: 10002, // Very high z-index when active
+  },
+
   // Field label
   fieldLabelWrap: { marginLeft: 6, marginBottom: 6 },
   fieldLabel: {
@@ -576,6 +605,9 @@ const styles = StyleSheet.create({
 
   // Autocomplete
   autoCompleteContainer: { flex: 0 },
+  activeAutoCompleteContainer: {
+    zIndex: 10003,
+  },
   autoCompleteTextInput: {
     height: 50,
     fontSize: 16,
@@ -591,6 +623,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     ...Platform.select({ android: { elevation: 6 } }),
   },
+  textInputFocusedGold: { borderColor: COLORS.gold },
+  
+  // AutoComplete list view with dynamic positioning
   autoCompleteListView: {
     position: "absolute",
     top: 52,
@@ -600,14 +635,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 6,
     maxHeight: 260,
-    zIndex: 99999,
-    ...Platform.select({ android: { elevation: 30 } }),
+    zIndex: 9999,
+    elevation: 30,
     borderWidth: 1.5,
     borderColor: COLORS.borderStrong,
     shadowColor: COLORS.shadow,
     shadowOpacity: 0.28,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
+  },
+  activeAutoCompleteListView: {
+    zIndex: 10004, // Highest z-index for active list
+    elevation: 35,
   },
   autoCompleteRow: { backgroundColor: "#14181f", paddingVertical: 10, paddingHorizontal: 12 },
   autoCompleteSeparator: { height: 1, backgroundColor: "#14181f" },

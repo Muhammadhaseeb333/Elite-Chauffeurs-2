@@ -111,7 +111,7 @@ export default function ReturnMapScreen({ navigation, route }) {
 
   const [pickupText, setPickupText] = useState("");
   const [dropoffText, setDropoffText] = useState("");
-  const [mapInteractive, setMapInteractive] = useState(true); // kept but no longer gates gestures
+  const [mapInteractive, setMapInteractive] = useState(true);
 
   const [pickupLocation, setPickupLocation] = useState(null);
   const [dropLocation, setDropLocation] = useState(null);
@@ -139,6 +139,7 @@ export default function ReturnMapScreen({ navigation, route }) {
 
   const [pickupFocused, setPickupFocused] = useState(false);
   const [dropoffFocused, setDropoffFocused] = useState(false);
+  const [activeInput, setActiveInput] = useState(null); // Track which input is active
 
   useEffect(() => {
     const sh = Keyboard.addListener("keyboardDidShow", () => setMapInteractive(false));
@@ -214,6 +215,7 @@ export default function ReturnMapScreen({ navigation, route }) {
     centerAt(loc.latitude, loc.longitude, 0.012);
     pickupRef.current?.blur?.();
     Keyboard.dismiss();
+    setActiveInput(null);
     setTimeout(() => dropoffRef.current?.focus?.(), 120);
   };
 
@@ -238,6 +240,7 @@ export default function ReturnMapScreen({ navigation, route }) {
     centerAt(loc.latitude, loc.longitude, 0.012);
     dropoffRef.current?.blur?.();
     Keyboard.dismiss();
+    setActiveInput(null);
   };
 
   const handleContinue = () => {
@@ -373,20 +376,22 @@ export default function ReturnMapScreen({ navigation, route }) {
 
   const isContinueDisabled = !(pickupLocation && dropLocation);
 
-  const pickupAutoStyles = {
-    container: styles.autoCompleteContainer,
+  // Dynamic styles based on active input
+  const getPickupAutoStyles = () => ({
+    container: [styles.autoCompleteContainer, activeInput === 'pickup' && styles.activeAutoCompleteContainer],
     textInput: [styles.autoCompleteTextInput, pickupFocused && styles.textInputFocusedGold],
-    listView: styles.autoCompleteListView,
+    listView: [styles.autoCompleteListView, activeInput === 'pickup' && styles.activeAutoCompleteListView],
     row: styles.autoCompleteRow,
     separator: styles.autoCompleteSeparator,
-  };
-  const dropAutoStyles = {
-    container: styles.autoCompleteContainer,
+  });
+
+  const getDropoffAutoStyles = () => ({
+    container: [styles.autoCompleteContainer, activeInput === 'dropoff' && styles.activeAutoCompleteContainer],
     textInput: [styles.autoCompleteTextInput, dropoffFocused && styles.textInputFocusedCyan],
-    listView: styles.autoCompleteListView,
+    listView: [styles.autoCompleteListView, activeInput === 'dropoff' && styles.activeAutoCompleteListView],
     row: styles.autoCompleteRow,
     separator: styles.autoCompleteSeparator,
-  };
+  });
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
@@ -395,8 +400,7 @@ export default function ReturnMapScreen({ navigation, route }) {
         style={styles.map}
         initialRegion={initialRegion}
         customMapStyle={DARK_MAP_STYLE}
-        provider={PROVIDER_GOOGLE} // ✅ force Google Maps
-        // ✅ keep gestures enabled on iOS and Android
+        provider={PROVIDER_GOOGLE}
         scrollEnabled
         zoomEnabled
         rotateEnabled
@@ -405,6 +409,7 @@ export default function ReturnMapScreen({ navigation, route }) {
         onTouchStart={() => {
           pickupRef.current?.blur?.();
           dropoffRef.current?.blur?.();
+          setActiveInput(null);
         }}
       >
         {pickupLocation && (
@@ -458,95 +463,117 @@ export default function ReturnMapScreen({ navigation, route }) {
       {/* Panel: let touches outside flow to the map */}
       <View style={styles.inputContainer} pointerEvents="box-none">
         <View style={styles.searchPanel} pointerEvents="auto">
-          {/* Pickup */}
-          <View style={styles.fieldLabelWrap}>
-            <Text style={styles.fieldLabel}>Pickup</Text>
+          {/* Pickup Location */}
+          <View style={[
+            styles.autocompleteWrapper, 
+            activeInput === 'pickup' && styles.activeAutocompleteWrapper
+          ]}>
+            <View style={styles.fieldLabelWrap}>
+              <Text style={styles.fieldLabel}>Pickup</Text>
+            </View>
+            <GooglePlacesAutocomplete
+              ref={pickupRef}
+              placeholder="Enter Pickup Location"
+              fetchDetails
+              minLength={2}
+              debounce={250}
+              timeout={15000}
+              onPress={onPickupSelect}
+              keyboardShouldPersistTaps="always"
+              query={{ key: GOOGLE_MAPS_API_KEY, language: "en", components: "country:ie"  }}
+              GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address", "types"] }}
+              predefinedPlaces={[]}
+              textInputProps={{
+                onChangeText: setPickupText,
+                onFocus: () => {
+                  setPickupFocused(true);
+                  setActiveInput('pickup');
+                },
+                onBlur: () => {
+                  setPickupFocused(false);
+                  if (activeInput === 'pickup') setActiveInput(null);
+                },
+                returnKeyType: "search",
+                placeholderTextColor: COLORS.muted,
+                value: pickupText,
+              }}
+              styles={getPickupAutoStyles()}
+              enablePoweredByContainer={false}
+              listEmptyComponent={<View />}
+              renderRightButton={() => (
+                <View style={styles.rightSide}>
+                  {isLoadingDirections ? <ActivityIndicator color={COLORS.gold} /> : null}
+                  {pickupText?.length ? (
+                    <TouchableOpacity
+                      onPress={clearPickup}
+                      style={styles.clearBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle" size={20} color={COLORS.muted} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )}
+              onFail={(e) => console.log("Pickup places error:", e)}
+              renderRow={renderSuggestionRow}
+            />
           </View>
-          <GooglePlacesAutocomplete
-            ref={pickupRef}
-            placeholder="Enter Pickup Location"
-            fetchDetails
-            minLength={2}
-            debounce={250}
-            timeout={15000}
-            onPress={onPickupSelect}
-            keyboardShouldPersistTaps="always"
-            query={{ key: GOOGLE_MAPS_API_KEY, language: "en", components: "country:ie"  }}
-            GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address", "types"] }}
-            predefinedPlaces={[]}
-            textInputProps={{
-              onChangeText: setPickupText,
-              onFocus: () => setPickupFocused(true),
-              onBlur: () => setPickupFocused(false),
-              returnKeyType: "search",
-              placeholderTextColor: COLORS.muted,
-              value: pickupText,
-            }}
-            styles={pickupAutoStyles}
-            enablePoweredByContainer={false}
-            listEmptyComponent={<View />}
-            renderRightButton={() => (
-              <View style={styles.rightSide}>
-                {isLoadingDirections ? <ActivityIndicator color={COLORS.gold} /> : null}
-                {pickupText?.length ? (
-                  <TouchableOpacity
-                    onPress={clearPickup}
-                    style={styles.clearBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={20} color={COLORS.muted} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            )}
-            onFail={(e) => console.log("Pickup places error:", e)}
-            renderRow={renderSuggestionRow}
-          />
 
-          {/* Drop-off */}
-          <View style={[styles.fieldLabelWrap, { marginTop: 12 }]}>
-            <Text style={styles.fieldLabel}>Drop-off</Text>
+          {/* Drop-off Location */}
+          <View style={[
+            styles.autocompleteWrapper, 
+            activeInput === 'dropoff' && styles.activeAutocompleteWrapper
+          ]}>
+            <View style={[styles.fieldLabelWrap, { marginTop: 12 }]}>
+              <Text style={styles.fieldLabel}>Drop-off</Text>
+            </View>
+            <GooglePlacesAutocomplete
+              ref={dropoffRef}
+              placeholder="Enter Drop-off Location"
+              fetchDetails
+              minLength={2}
+              debounce={250}
+              timeout={15000}
+              onPress={onDropoffSelect}
+              keyboardShouldPersistTaps="always"
+              query={{ key: GOOGLE_MAPS_API_KEY, language: "en", components: "country:ie"  }}
+              GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address"] }}
+              predefinedPlaces={[]}
+              textInputProps={{
+                onChangeText: setDropoffText,
+                onFocus: () => {
+                  setDropoffFocused(true);
+                  setActiveInput('dropoff');
+                },
+                onBlur: () => {
+                  setDropoffFocused(false);
+                  if (activeInput === 'dropoff') setActiveInput(null);
+                },
+                returnKeyType: "search",
+                placeholderTextColor: COLORS.muted,
+                value: dropoffText,
+              }}
+              styles={getDropoffAutoStyles()}
+              enablePoweredByContainer={false}
+              listEmptyComponent={<View />}
+              renderRightButton={() => (
+                <View style={styles.rightSide}>
+                  {isLoadingDirections ? <ActivityIndicator color={COLORS.gold} /> : null}
+                  {dropoffText?.length ? (
+                    <TouchableOpacity
+                      onPress={clearDropoff}
+                      style={styles.clearBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle" size={20} color={COLORS.muted} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )}
+              onFail={(e) => console.log("Dropoff places error:", e)}
+              renderRow={renderSuggestionRow}
+            />
           </View>
-          <GooglePlacesAutocomplete
-            ref={dropoffRef}
-            placeholder="Enter Drop-off Location"
-            fetchDetails
-            minLength={2}
-            debounce={250}
-            timeout={15000}
-            onPress={onDropoffSelect}
-            keyboardShouldPersistTaps="always"
-            query={{ key: GOOGLE_MAPS_API_KEY, language: "en", components: "country:ie"  }}
-            GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address"] }}
-            predefinedPlaces={[]}
-            textInputProps={{
-              onChangeText: setDropoffText,
-              onFocus: () => setDropoffFocused(true),
-              onBlur: () => setDropoffFocused(false),
-              returnKeyType: "search",
-              placeholderTextColor: COLORS.muted,
-              value: dropoffText,
-            }}
-            styles={dropAutoStyles}
-            enablePoweredByContainer={false}
-            listEmptyComponent={<View />}
-            renderRightButton={() => (
-              <View style={styles.rightSide}>
-                {isLoadingDirections ? <ActivityIndicator color={COLORS.gold} /> : null}
-                {dropoffText?.length ? (
-                  <TouchableOpacity
-                    onPress={clearDropoff}
-                    style={styles.clearBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={20} color={COLORS.muted} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            )}
-            onFail={(e) => console.log("Dropoff places error:", e)}
-            renderRow={renderSuggestionRow}
-          />
 
           {/* Pickup Date & Time */}
           <View style={styles.sectionTitleRow}>
@@ -754,7 +781,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   map: { 
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0b0d10', // 👈 dark bg behind tiles
+    backgroundColor: '#0b0d10',
+    zIndex: 0,
   },
 
   // iOS DateTimePicker styles
@@ -846,6 +874,14 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: 14 } }),
   },
 
+  // Autocomplete wrappers with dynamic z-index
+  autocompleteWrapper: {
+    zIndex: 1,
+  },
+  activeAutocompleteWrapper: {
+    zIndex: 10002, // Very high z-index when active
+  },
+
   // labels
   fieldLabelWrap: { marginLeft: 6, marginBottom: 6 },
   fieldLabel: {
@@ -862,6 +898,9 @@ const styles = StyleSheet.create({
 
   // autocomplete
   autoCompleteContainer: { flex: 0 },
+  activeAutoCompleteContainer: {
+    zIndex: 10003,
+  },
   autoCompleteTextInput: {
     height: height * 0.06,
     fontSize: width * 0.04,
@@ -879,6 +918,8 @@ const styles = StyleSheet.create({
   },
   textInputFocusedGold: { borderColor: COLORS.gold },
   textInputFocusedCyan: { borderColor: COLORS.cyan },
+  
+  // AutoComplete list view with dynamic positioning
   autoCompleteListView: {
     position: "absolute",
     top: height * 0.065,
@@ -888,14 +929,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 6,
     maxHeight: height * 0.35,
-    zIndex: 99999,
-    ...Platform.select({ android: { elevation: 30 } }),
+    zIndex: 9999,
+    elevation: 30,
     borderWidth: 1.5,
     borderColor: COLORS.borderStrong,
     shadowColor: COLORS.shadow,
     shadowOpacity: 0.28,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
+  },
+  activeAutoCompleteListView: {
+    zIndex: 10004, // Highest z-index for active list
+    elevation: 35,
   },
   autoCompleteRow: { backgroundColor: "#14181f", paddingVertical: 10, paddingHorizontal: 12 },
   autoCompleteSeparator: { height: 1, backgroundColor: COLORS.border },
