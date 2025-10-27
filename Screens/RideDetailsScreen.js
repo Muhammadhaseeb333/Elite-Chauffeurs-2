@@ -18,6 +18,7 @@ import { useDiscount } from "@/Screens/DiscountContext";
 import { auth } from '@/config/firebaseConfig';
 import { serverTimestamp } from 'firebase/firestore';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 const { width, height } = Dimensions.get("window");
 const isSmallDevice = width < 380;
@@ -63,6 +64,11 @@ export default function RideDetailsScreen() {
       resetDiscount();
     }
   }, [route.params?.fare]);
+
+  // Navigation back handler
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
 
   // Normalize params: accept either key, use dropLocation internally
   const {
@@ -191,7 +197,17 @@ export default function RideDetailsScreen() {
       <View style={styles.screen}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Ride Summary</Text>
+          <View style={styles.headerLeft}>
+            {/* Back Button */}
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={handleBackPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="chevron-back" size={24} color="#b88a44" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Ride Summary</Text>
+          </View>
           <View style={[styles.badge, { backgroundColor: tripTypeConfig[currentTripType].color }]}>
             <MaterialIcons name={tripTypeConfig[currentTripType].icon} size={18} color="#fff" />
             <Text style={styles.badgeText}>{tripTypeConfig[currentTripType].label}</Text>
@@ -386,10 +402,20 @@ export const styles = StyleSheet.create({
     paddingVertical: scalePadding(12),
     backgroundColor: COLORS.bg,
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
+  },
   headerTitle: {
     color: COLORS.gold,
     fontSize: scaleFont(20),
     fontWeight: "800",
+    flex: 1,
   },
   badge: {
     flexDirection: "row",

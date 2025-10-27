@@ -23,6 +23,9 @@ import { DARK_MAP_STYLE } from "@/constants/mapStyles";
 
 const { width, height } = Dimensions.get("window");
 
+const scale = (size) => (width / 375) * size;
+const vScale = (size) => (height / 812) * size;
+
 const GOOGLE_MAPS_API_KEY = "AIzaSyAq5LNTt4_tSsErPFJqf82TJpBwfixOvnc";
 
 const COLORS = {
@@ -151,6 +154,11 @@ export default function ReturnMapScreen({ navigation, route }) {
       if (tracksTimerDrop.current) clearTimeout(tracksTimerDrop.current);
     };
   }, []);
+
+  // Navigation back handler
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
 
   const centerAt = (lat, lng, delta = 0.01) => {
     mapRef.current?.animateToRegion(
@@ -305,6 +313,18 @@ export default function ReturnMapScreen({ navigation, route }) {
         return;
       }
 
+      // NEW: 4-hour minimum difference validation
+      const timeDifference = selectedReturn.getTime() - selectedPickup.getTime();
+      const hoursDifference = timeDifference / (1000 * 60 * 60);
+      
+      if (hoursDifference < 4) {
+        Alert.alert(
+          "Invalid Time Difference",
+          "Drop-off time must be at least 4 hours after pickup time. Please adjust your times."
+        );
+        return;
+      }
+
       if (dropoffDate.toDateString() === pickupDate.toDateString() && selectedReturn < minAllowed) {
         Alert.alert(
           "Invalid Return Time",
@@ -395,6 +415,11 @@ export default function ReturnMapScreen({ navigation, route }) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+      {/* Navigation Back Button */}
+      <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+        <Ionicons name="chevron-back" size={24} color={COLORS.text} />
+      </TouchableOpacity>
+
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -784,6 +809,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#0b0d10',
     zIndex: 0,
   },
+  // Back Button
+  backButton: {
+    position: "absolute",
+    top: vScale(35),
+    left: scale(20),
+    width: scale(44),
+    height: scale(44),
+    borderRadius: scale(22),
+    backgroundColor: COLORS.panelBg,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10001,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderStrong,
+    shadowColor: COLORS.shadow,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    ...Platform.select({ android: { elevation: 12 } }),
+  },
 
   // iOS DateTimePicker styles
   iosPickerContainer: {
@@ -855,7 +900,7 @@ const styles = StyleSheet.create({
   // panel
   inputContainer: {
     position: "absolute",
-    top: height * 0.06,
+    top: height * 0.09,
     width: "92%",
     alignSelf: "center",
     zIndex: 10000,

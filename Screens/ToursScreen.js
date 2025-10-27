@@ -10,6 +10,8 @@ import {
   Dimensions,
   ActivityIndicator,
   Platform,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { collection, getDocs } from 'firebase/firestore';
@@ -31,6 +33,11 @@ export default function ToursScreen() {
   const navigation = useNavigation();
   const [tours, setTours] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Navigation back handler
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
 
   useEffect(() => {
     const fetchTours = async () => {
@@ -64,9 +71,12 @@ export default function ToursScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color={COLORS.gold} />
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color={COLORS.gold} />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -121,7 +131,7 @@ export default function ToursScreen() {
 
             <View style={styles.divider} />
 
-            {/* Right-aligned “View” pill; price removed */}
+            {/* Right-aligned "View" pill; price removed */}
             <View style={styles.actionsRow}>
               <View style={styles.viewPill}>
                 <Text style={styles.viewPillText}>View</Text>
@@ -134,27 +144,82 @@ export default function ToursScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={tours}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        ListEmptyComponent={Empty}
-        contentContainerStyle={{ padding: 12, paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+      <View style={styles.container}>
+        {/* Header with Back Button */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={handleBackPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="chevron-back" size={24} color={COLORS.gold} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Available Tours</Text>
+          </View>
+        </View>
+
+        <FlatList
+          data={tours}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          ListEmptyComponent={Empty}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
 export const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  container: { 
+    flex: 1, 
+    backgroundColor: COLORS.bg 
+  },
+
+  // Header Styles
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.bg,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
+  },
+  headerTitle: {
+    color: COLORS.gold,
+    fontSize: 20,
+    fontWeight: "800",
+    flex: 1,
+  },
 
   loader: {
     flex: 1,
     backgroundColor: COLORS.bg,
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  listContent: { 
+    padding: 12, 
+    paddingBottom: 24,
+    paddingTop: 8, // Reduced top padding since we have header
   },
 
   // ✨ Card responsive

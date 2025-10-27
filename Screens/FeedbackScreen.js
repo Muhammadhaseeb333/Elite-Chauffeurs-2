@@ -27,7 +27,7 @@ import Animated, {
 import { auth, db } from "@/config/firebaseConfig";
 import { addDoc, collection, serverTimestamp, doc, getDoc } from "firebase/firestore";
 // (Optional) accept context like rideId/driverId/companyId via route if you pass them
-import { useRoute } from "@react-navigation/native";
+import { useRoute, useNavigation } from "@react-navigation/native";
 
 const COLORS = {
   bg: "#0f1115",
@@ -40,6 +40,7 @@ const COLORS = {
 
 export default function FeedbackScreen() {
   const route = useRoute();
+  const navigation = useNavigation();
   const { rideId = null, driverId = null, companyId = null } = route.params || {};
 
   const [feedback, setFeedback] = useState("");
@@ -124,13 +125,26 @@ export default function FeedbackScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={24} color={COLORS.gold} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Feedback</Text>
+        <View style={styles.placeholder} />
+      </View>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.content}>
           <Animated.Text
-            style={styles.header}
+            style={styles.title}
             entering={FadeInDown.delay(80).duration(500)}
           >
             We Value Your Feedback
@@ -191,9 +205,39 @@ export default function FeedbackScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.bg },
-  content: { padding: 20, paddingBottom: 36 },
+  safeArea: { 
+    flex: 1, 
+    backgroundColor: COLORS.bg 
+  },
+  // Header Styles
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    color: COLORS.gold,
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
+  },
+  placeholder: {
+    width: 40,
+  },
+  content: { 
+    padding: 20, 
+    paddingBottom: 36 
+  },
+  title: {
     color: COLORS.gold,
     fontSize: 22,
     fontWeight: "800",

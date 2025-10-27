@@ -12,14 +12,12 @@ import {
   Modal,
   ScrollView,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "@/config/firebaseConfig";
 import { 
   doc, 
   getDoc, 
   updateDoc, 
-  deleteDoc, 
   collection, 
   query, 
   where, 
@@ -39,7 +37,6 @@ export default function PersonalInfoScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showDOBPicker, setShowDOBPicker] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReauthModal, setShowReauthModal] = useState(false);
   const [showReasonModal, setShowReasonModal] = useState(false);
@@ -50,7 +47,6 @@ export default function PersonalInfoScreen() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName]   = useState("");
   const [phone, setPhone]         = useState("");
-  const [dob, setDob]             = useState(""); // "YYYY-MM-DD"
   const [email, setEmail]         = useState("");
 
   // Delete reasons as per Apple guidelines
@@ -62,41 +58,6 @@ export default function PersonalInfoScreen() {
     "I'm not using the app anymore",
     "Other reason"
   ];
-
-  // ----- Utils -----
-  const toYMD = (dateLike) => {
-    const d = new Date(dateLike);
-    if (isNaN(d.getTime())) return "";
-    return d.toISOString().split("T")[0];
-  };
-
-  const prettyDate = (ymd) => {
-    if (!ymd) return "";
-    const d = new Date(ymd);
-    if (isNaN(d)) return "";
-    return d.toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
-  const weekdayOf = (ymd) => {
-    const d = new Date(ymd);
-    if (isNaN(d)) return "";
-    return d.toLocaleDateString(undefined, { weekday: "long" });
-  };
-
-  const calcAge = (ymd) => {
-    const d = new Date(ymd);
-    if (isNaN(d)) return null;
-    const today = new Date();
-    let age = today.getFullYear() - d.getFullYear();
-    const m = today.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
-    return age;
-  };
 
   // ----- Load profile -----
   useEffect(() => {
@@ -111,18 +72,6 @@ export default function PersonalInfoScreen() {
             setFirstName(data.firstName || "");
             setLastName(data.lastName || "");
             setPhone(data.phone || "");
-
-            // Backwards-compatible birthday read
-            let resolvedDob = "";
-            if (data.birthdayAt && typeof data.birthdayAt.toDate === "function") {
-              resolvedDob = toYMD(data.birthdayAt.toDate());
-            } else if (data.birthday) {
-              resolvedDob = data.birthday;
-            } else if (data.dob) {
-              resolvedDob = data.dob;
-            }
-            setDob(resolvedDob);
-
             setEmail(data.email || user.email || "");
           } else {
             setEmail(user.email || "");
@@ -151,19 +100,8 @@ export default function PersonalInfoScreen() {
         firstName: (firstName || "").trim(),
         lastName: (lastName || "").trim(),
         phone: (phone || "").trim(),
-        dob: dob || "",
-        birthday: dob || "",
         updatedAt: serverTimestamp(),
       };
-
-      if (dob) {
-        const d = new Date(dob);
-        if (!isNaN(d.getTime())) {
-          updatePayload.birthdayAt = d; // stored as Timestamp in Firestore
-        }
-      } else {
-        updatePayload.birthdayAt = null;
-      }
 
       await updateDoc(ref, updatePayload);
       Alert.alert("Success", "Profile updated successfully.");
@@ -326,11 +264,21 @@ export default function PersonalInfoScreen() {
     );
   }
 
-  const age = calcAge(dob);
-  const hasDob = Boolean(dob);
-
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#b88a44" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Personal Information</Text>
+        <View style={styles.placeholder} />
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.form}>
           <Text style={styles.title}>Edit Personal Info</Text>
@@ -357,61 +305,6 @@ export default function PersonalInfoScreen() {
             onChangeText={setPhone}
             keyboardType="phone-pad"
           />
-
-          {/* Birthday Card */}
-          <View style={styles.bdayCard}>
-            <View style={styles.bdayHeader}>
-              <View style={styles.bdayIconWrap}>
-                <Ionicons name="calendar-outline" size={18} color="#b88a44" />
-              </View>
-              <Text style={styles.bdayTitle}>Birthday</Text>
-
-              <TouchableOpacity
-                onPress={() => setShowDOBPicker(true)}
-                style={styles.editPill}
-              >
-                <Ionicons name="create-outline" size={16} color="#0f1115" />
-                <Text style={styles.editPillText}>{hasDob ? "Edit" : "Set"}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {hasDob ? (
-              <>
-                <Text style={styles.bdayBig}>{prettyDate(dob)}</Text>
-                <View style={styles.chipsRow}>
-                  {age !== null && (
-                    <View style={styles.chip}>
-                      <Ionicons name="gift-outline" size={14} color="#b88a44" />
-                      <Text style={styles.chipText}>Age {age}</Text>
-                    </View>
-                  )}
-                  <View style={styles.chip}>
-                    <Ionicons name="calendar-number-outline" size={14} color="#b88a44" />
-                    <Text style={styles.chipText}>{weekdayOf(dob)}</Text>
-                  </View>
-                </View>
-              </>
-            ) : (
-              <Text style={styles.bdayHint}>
-                Add your birthday to personalize your experience.
-              </Text>
-            )}
-          </View>
-
-          {showDOBPicker && (
-            <DateTimePicker
-              value={dob ? new Date(dob) : new Date()}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={(event, selectedDate) => {
-                if (Platform.OS !== "ios") setShowDOBPicker(false);
-                if (selectedDate) {
-                  setDob(toYMD(selectedDate));
-                }
-              }}
-              onTouchCancel={() => setShowDOBPicker(false)}
-            />
-          )}
 
           <TextInput
             style={[styles.input, styles.disabledInput]}
@@ -594,9 +487,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG,
   },
+  // Header Styles
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    color: GOLD,
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
+  },
+  placeholder: {
+    width: 40,
+  },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 40,
+    paddingTop: 20,
     paddingBottom: 20,
   },
   form: {
@@ -622,82 +539,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   disabledInput: { opacity: 0.5 },
-
-  // Birthday card
-  bdayCard: {
-    backgroundColor: "#171a22",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: BORDER,
-    padding: 14,
-    marginBottom: 15,
-  },
-  bdayHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  bdayIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(184,138,68,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
-  bdayTitle: {
-    color: TEXT,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  editPill: {
-    marginLeft: "auto",
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: GOLD,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  editPillText: {
-    color: "#0f1115",
-    fontWeight: "800",
-    fontSize: 12,
-    marginLeft: 6,
-  },
-  bdayBig: {
-    color: TEXT,
-    fontSize: 18,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  bdayHint: {
-    color: "#b6b6b6",
-    fontSize: 13,
-    marginTop: 2,
-  },
-  chipsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 10,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#1f2330",
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  chipText: {
-    color: TEXT,
-    fontSize: 12,
-    fontWeight: "700",
-  },
 
   button: {
     backgroundColor: GOLD,

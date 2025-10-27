@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialIcons, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
 import { useDiscount } from "@/Screens/DiscountContext";
@@ -91,6 +91,14 @@ export default function PromoCodeScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={styles.screen}
     >
+      {/* Back Button */}
+      <TouchableOpacity 
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Ionicons name="chevron-back" size={24} color="#b88a44" />
+      </TouchableOpacity>
+
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <MaterialCommunityIcons name="ticket-percent" size={20} color={COLORS.gold} />
@@ -143,7 +151,33 @@ export default function PromoCodeScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.bg, padding: 16, justifyContent: "center" },
+  screen: { 
+    flex: 1, 
+    backgroundColor: COLORS.bg, 
+    padding: 16, 
+    justifyContent: "center" 
+  },
+
+  // Back Button Styles
+  backButton: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 60 : 40,
+    left: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(15, 17, 21, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
 
   card: {
     backgroundColor: COLORS.card,
@@ -151,6 +185,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
+    marginTop: 20, // Added margin to account for back button
   },
 
   cardHeader: {

@@ -361,8 +361,18 @@ export default function MapScreen() {
     }
   };
 
+  // Navigation back handler
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+      {/* Navigation Back Button */}
+      <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+        <Ionicons name="chevron-back" size={24} color={COLORS.text} />
+      </TouchableOpacity>
+
       {/* Add a dark overlay that disappears when map is ready */}
       {!isMapReady && !mapError && (
         <View style={styles.mapOverlay}>
@@ -683,6 +693,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#0b0d10',
     zIndex: 0,
   },
+  // Back Button
+  backButton: {
+    position: "absolute",
+    top: vScale(30),
+    left: scale(20),
+    width: scale(44),
+    height: scale(44),
+    borderRadius: scale(22),
+    backgroundColor: COLORS.panelBg,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10001,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderStrong,
+    shadowColor: COLORS.shadow,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    ...Platform.select({ android: { elevation: 12 } }),
+  },
   // Map loading overlay
   mapOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -801,7 +831,7 @@ const styles = StyleSheet.create({
   // inputs panel
   inputContainer: {
     position: "absolute",
-    top: vScale(50),
+    top: vScale(70),
     width: "92%",
     alignSelf: "center",
     zIndex: 10000,

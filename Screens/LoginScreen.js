@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PhoneInput from "react-native-phone-number-input";
@@ -22,7 +23,13 @@ import { Platform } from "react-native";
 
 // Firebase + Firestore helpers
 import { auth, db } from "@/config/firebaseConfig";
-import { signInAnonymously } from "firebase/auth";
+import { 
+  signInAnonymously, 
+  sendEmailVerification, 
+  signInWithEmailAndPassword,
+  signOut,
+  reload
+} from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 const { width } = Dimensions.get("window");
@@ -48,9 +55,66 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSkipLoading, setIsSkipLoading] = useState(false);
+  
+  // New state for unverified email modal
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState("");
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
+  const [isCheckingVerification, setIsCheckingVerification] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const phoneInput = useRef(null);
   const { request, promptAsync } = useGoogleAuth();
+
+  // Polling effect to check email verification status
+  useEffect(() => {
+    let pollInterval = null;
+    
+    if (showVerificationModal && currentUser) {
+      const checkEmailVerification = async () => {
+        if (!currentUser) return;
+        
+        try {
+          setIsCheckingVerification(true);
+          
+          // Reload user to get latest verification status
+          await reload(currentUser);
+          
+          if (currentUser.emailVerified) {
+            // Email verified! Continue with login flow
+            setIsCheckingVerification(false);
+            setShowVerificationModal(false);
+            
+            // Ensure profile exists & mark as registered (not guest)
+            const uid = currentUser.uid;
+            if (uid) {
+              await ensureCustomerDoc(uid, { guestUser: false });
+            }
+
+            // Navigate to main app
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "App" }],
+            });
+          }
+        } catch (error) {
+          console.error("Error checking verification:", error);
+        } finally {
+          setIsCheckingVerification(false);
+        }
+      };
+
+      // Start polling immediately and every 3 seconds
+      checkEmailVerification();
+      pollInterval = setInterval(checkEmailVerification, 3000);
+    }
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [showVerificationModal, currentUser, navigation]);
 
   const validateForm = () => {
     setErrorMessage(""); // Clear previous errors
@@ -127,7 +191,6 @@ export default function LoginScreen() {
         guestUser: true,
       });
 
-      // FIXED: Navigate to App stack instead of MainTabs directly
       navigation.navigate("App");
     } catch (err) {
       console.error("Skip/guest error:", err);
@@ -154,16 +217,28 @@ export default function LoginScreen() {
           formattedPhone,
         });
       } else {
-        // Email/password login
-        await loginUser(email, password);
+        // Email/password login - try to sign in first
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
 
+        // Check if email is verified
+        if (!user.emailVerified) {
+          // Store the user and show verification modal
+          setCurrentUser(user);
+          setUnverifiedEmail(email);
+          setShowVerificationModal(true);
+          // Don't proceed with login, just return
+          setIsLoading(false);
+          return;
+        }
+
+        // If email is verified, continue with normal flow
         // Ensure profile exists & mark as registered (not guest)
-        const uid = auth.currentUser?.uid;
+        const uid = user.uid;
         if (uid) {
           await ensureCustomerDoc(uid, { guestUser: false });
         }
 
-        // FIXED: Navigate to App stack instead of MainTabs directly
         navigation.navigate("App");
       }
     } catch (error) {
@@ -171,6 +246,39 @@ export default function LoginScreen() {
       handleAuthError(error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handle resend verification email
+  const handleResendVerification = async () => {
+    if (isSendingVerification) return;
+    
+    setIsSendingVerification(true);
+    
+    try {
+      // Use the stored currentUser to send verification
+      if (currentUser) {
+        await sendEmailVerification(currentUser);
+        
+        // Show success message
+        setErrorMessage("✅ Verification email sent! Please check your inbox and spam folder.");
+      } else {
+        setErrorMessage("Unable to resend verification. Please try logging in again.");
+      }
+      
+    } catch (error) {
+      console.error("Error sending verification:", error);
+      let errorMsg = "Failed to send verification email. Please try again.";
+      
+      if (error.code === "auth/too-many-requests") {
+        errorMsg = "Too many attempts. Please wait before trying again.";
+      } else if (error.code === "auth/network-request-failed") {
+        errorMsg = "Network error. Please check your internet connection.";
+      }
+      
+      setErrorMessage(errorMsg);
+    } finally {
+      setIsSendingVerification(false);
     }
   };
 
@@ -221,6 +329,19 @@ export default function LoginScreen() {
     setPassword("");
     setEmail("");
     setErrorMessage("");
+  };
+
+  // Close modal and sign out the unverified user
+  const handleCloseModal = async () => {
+    if (currentUser) {
+      try {
+        await signOut(auth);
+      } catch (error) {
+        console.error("Error signing out:", error);
+      }
+    }
+    setShowVerificationModal(false);
+    setCurrentUser(null);
   };
 
   return (
@@ -285,6 +406,7 @@ export default function LoginScreen() {
                 onChangeText={setLastName}
                 value={lastName}
                 autoCapitalize="words"
+                secureTextEntry={false} 
               />
             </Animated.View>
 
@@ -294,7 +416,7 @@ export default function LoginScreen() {
               <PhoneInput
                 ref={phoneInput}
                 defaultValue={phoneNumber}
-                defaultCode="PK"
+                defaultCode="IE"
                 layout="first"
                 onChangeText={setPhoneNumber}
                 onChangeFormattedText={setFormattedPhone}
@@ -394,6 +516,51 @@ export default function LoginScreen() {
             </Text>
           </TouchableOpacity>
         </Animated.View>
+
+        {/* Email Verification Modal */}
+        <Modal
+          visible={showVerificationModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleCloseModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Email Not Verified</Text>
+              
+              <Text style={styles.modalText}>
+                Your email address <Text style={styles.emailHighlight}>{unverifiedEmail}</Text> has not been verified yet.
+              </Text>
+              
+              <Text style={styles.modalText}>
+                Please check your inbox and spam folder for the verification link. 
+                {isCheckingVerification && "\n\nChecking verification status..."}
+              </Text>
+
+              <TouchableOpacity
+                style={styles.resendButton}
+                onPress={handleResendVerification}
+                disabled={isSendingVerification}
+              >
+                {isSendingVerification ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.resendButtonText}>Resend Verification Email</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={handleCloseModal}
+                disabled={isCheckingVerification}
+              >
+                <Text style={styles.closeButtonText}>
+                  {isCheckingVerification ? "Checking..." : "Close"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -511,4 +678,63 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   forgotPasswordText: { color: "#B88A44", fontSize: 14, fontWeight: "500" },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: "#1c1e23",
+    borderRadius: 15,
+    padding: 25,
+    width: "100%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#b88a44",
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  modalText: {
+    color: "#fff",
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 15,
+    lineHeight: 22,
+  },
+  emailHighlight: {
+    color: "#b88a44",
+    fontWeight: "600",
+  },
+  resendButton: {
+    backgroundColor: "#b88a44",
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 12,
+    marginTop: 10,
+  },
+  resendButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  closeButton: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#b88a44",
+  },
+  closeButtonText: {
+    color: "#b88a44",
+    fontWeight: "600",
+    fontSize: 16,
+  },
 });

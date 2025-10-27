@@ -7,11 +7,12 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  Platform,
 } from "react-native";
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "firebase/auth";
 import { auth } from "@/config/firebaseConfig";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons"; // Make sure you have expo-vector-icons installed
+import { Ionicons } from "@expo/vector-icons";
 
 export default function ChangePasswordScreen() {
   const navigation = useNavigation();
@@ -72,33 +73,58 @@ export default function ChangePasswordScreen() {
         secureTextEntry={!show}
         value={value}
         onChangeText={setValue}
+        autoCapitalize="none"
+        autoCorrect={false}
       />
-      <TouchableOpacity style={styles.eyeIcon} onPress={() => setShow(!show)}>
-        <Ionicons name={show ? "eye-off" : "eye"} size={22} color="#aaa" />
+      <TouchableOpacity 
+        style={styles.eyeIcon} 
+        onPress={() => setShow(!show)}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name={show ? "eye-off-outline" : "eye-outline"} size={22} color="#aaa" />
       </TouchableOpacity>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Change Password</Text>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#b88a44" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Change Password</Text>
+        <View style={styles.placeholder} />
+      </View>
 
-      {renderPasswordInput("Current Password", currentPassword, setCurrentPassword, showCurrent, setShowCurrent)}
-      {renderPasswordInput("New Password", newPassword, setNewPassword, showNew, setShowNew)}
-      {renderPasswordInput("Confirm New Password", confirmPassword, setConfirmPassword, showConfirm, setShowConfirm)}
+      <View style={styles.content}>
+        {renderPasswordInput("Current Password", currentPassword, setCurrentPassword, showCurrent, setShowCurrent)}
+        {renderPasswordInput("New Password", newPassword, setNewPassword, showNew, setShowNew)}
+        {renderPasswordInput("Confirm New Password", confirmPassword, setConfirmPassword, showConfirm, setShowConfirm)}
 
-      <TouchableOpacity style={styles.button} onPress={handleChangePassword} disabled={loading}>
-        <Text style={styles.buttonText}>
-          {loading ? "Updating..." : "Change Password"}
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.button, loading && styles.disabledButton]} 
+          onPress={handleChangePassword} 
+          disabled={loading}
+        >
+          {loading ? (
+            <Text style={styles.buttonText}>Updating...</Text>
+          ) : (
+            <Text style={styles.buttonText}>Change Password</Text>
+          )}
+        </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate("ForgotPasswordScreen")}>
-  <Text style={styles.forgotText}>Forgot Password?</Text>
-
-  
-</TouchableOpacity>
-
+        <TouchableOpacity 
+          onPress={() => navigation.navigate("ForgotPasswordScreen")}
+          style={styles.forgotButton}
+        >
+          <Text style={styles.forgotText}>Forgot Password?</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -107,49 +133,77 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f1115",
-    padding: 20,
-    justifyContent: "center",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#2a2a2a",
+  },
+  backButton: {
+    padding: 8,
   },
   title: {
     color: "#b88a44",
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "600",
-    marginBottom: 25,
     textAlign: "center",
+  },
+  placeholder: {
+    width: 40,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+    justifyContent: "center",
   },
   passwordContainer: {
     position: "relative",
-    marginBottom: 15,
+    marginBottom: 20,
   },
   input: {
     backgroundColor: "#1c1e23",
     color: "#fff",
-    padding: 14,
-    paddingRight: 40, // extra space for icon
-    borderRadius: 10,
+    padding: 16,
+    paddingRight: 50,
+    borderRadius: 12,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
   },
   eyeIcon: {
     position: "absolute",
-    right: 12,
+    right: 16,
     top: "50%",
     transform: [{ translateY: -11 }],
+    padding: 4,
   },
   button: {
     backgroundColor: "#b88a44",
-    paddingVertical: 14,
-    borderRadius: 10,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 20,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   buttonText: {
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
   },
+  forgotButton: {
+    alignItems: "center",
+  },
   forgotText: {
     color: "#aaa",
     textAlign: "center",
     textDecorationLine: "underline",
+    fontSize: 14,
   },
 });

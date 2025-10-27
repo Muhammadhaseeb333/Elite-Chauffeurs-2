@@ -32,5 +32,12 @@
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
 	<string>1:962290238047:ios:8f842d9b824ac62234d1ea</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>mailto</string>
+		<string>tel</string>
+		<string>sms</string>
+		<string>whatsapp</string>
+	</array>
 </dict>
 </plist>

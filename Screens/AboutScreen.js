@@ -7,8 +7,11 @@ import {
   ScrollView,
   Image,
   SafeAreaView,
+  TouchableOpacity,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import Animated, {
   FadeIn,
   FadeInUp,
@@ -33,14 +36,29 @@ const COLORS = {
 };
 
 export default function AboutScreen() {
+  const navigation = useNavigation();
+
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={24} color={COLORS.gold} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>About Us</Text>
+        <View style={styles.placeholder} />
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
         {/* Brand + tagline */}
         <Animated.Text 
           entering={FadeInUp.duration(800).springify().damping(12)} 
-          style={styles.header}
+          style={styles.brandHeader}
         >
           Elite Chauffeurs
         </Animated.Text>
@@ -159,9 +177,39 @@ function FeatureCard({ icon, title, delay = 0 }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.bg },
-  scrollContent: { padding: 20, paddingBottom: 40 },
+  safeArea: { 
+    flex: 1, 
+    backgroundColor: COLORS.bg 
+  },
+  // Header Styles
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    color: COLORS.gold,
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
+  },
+  placeholder: {
+    width: 40,
+  },
+  scrollContent: { 
+    padding: 20, 
+    paddingBottom: 40 
+  },
+  brandHeader: {
     color: COLORS.gold,
     fontSize: 28,
     fontWeight: "700",
@@ -208,7 +256,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  section: { marginBottom: 28 },
+  section: { 
+    marginBottom: 28 
+  },
   sectionTitle: {
     color: COLORS.gold,
     fontSize: 18,

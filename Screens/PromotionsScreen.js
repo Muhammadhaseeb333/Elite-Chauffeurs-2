@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   ImageBackground,
+  SafeAreaView,
 } from "react-native";
 import { useDiscount } from "@/Screens/DiscountContext";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -17,7 +18,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 
-const { height } = Dimensions.get("window");
+const { height, width } = Dimensions.get("window");
 
 const PromotionsScreen = () => {
   const [promotions, setPromotions] = useState([]);
@@ -104,8 +105,26 @@ const PromotionsScreen = () => {
     setLoading(false);
   };
 
+  // Navigation back handler
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={handleBackPress}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#b88a44" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Exclusive Vouchers</Text>
+        <View style={styles.placeholder} />
+      </View>
+
       {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#b88a44" />
@@ -121,7 +140,6 @@ const PromotionsScreen = () => {
       )}
 
       <View style={styles.headerContainer}>
-        <Text style={styles.header}>Exclusive Vouchers</Text>
         <Text style={styles.subHeader}>Premium offers for our valued clients</Text>
         <View style={styles.headerDivider} />
       </View>
@@ -193,34 +211,62 @@ const PromotionsScreen = () => {
           </View>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f1115" },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#0f1115" 
+  },
+  // Header Styles
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#2a2a2a",
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    color: "#b88a44",
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
+  },
+  placeholder: {
+    width: 40,
+  },
   headerContainer: {
     paddingHorizontal: 20,
-    marginBottom: 30, // extra spacing so heading doesn’t merge
+    marginTop: 20,
+    marginBottom: 20,
     alignItems: "center",
-    top: 50
   },
-  header: {
-    fontSize: 28,
-    fontWeight: "800",
+  subHeader: { 
+    fontSize: 16, 
+    color: "#ddd", 
     textAlign: "center",
-    color: "#b88a44",
-    marginBottom: 4,
+    fontWeight: "500",
   },
-  subHeader: { fontSize: 14, color: "#ddd", textAlign: "center" },
   headerDivider: {
-    marginTop: 10,
+    marginTop: 12,
     height: 1,
     backgroundColor: "rgba(255,255,255,0.1)",
-    width: "80%",
+    width: "60%",
     alignSelf: "center",
   },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  scrollContent: { 
+    paddingHorizontal: 20, 
+    paddingBottom: 40,
+  },
   cardWrapper: {
     width: "100%",
     borderRadius: 18,
@@ -264,7 +310,7 @@ const styles = StyleSheet.create({
   expiryText: { color: "#aaa", fontSize: 12, marginLeft: 5 },
   successBanner: {
     position: "absolute",
-    top: Platform.OS === "android" ? 50 : 70,
+    top: Platform.OS === "android" ? 100 : 120,
     width: "100%",
     backgroundColor: "#28a745",
     paddingVertical: 12,
@@ -273,7 +319,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 1,
   },
-  successText: { color: "#fff", fontSize: 16, fontWeight: "bold", marginLeft: 6 },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -282,7 +327,11 @@ const styles = StyleSheet.create({
     zIndex: 3,
   },
   loadingText: { color: "#fff", fontSize: 16, fontWeight: "600", marginTop: 12 },
-  emptyState: { alignItems: "center", paddingVertical: 50 },
+  emptyState: { 
+    alignItems: "center", 
+    paddingVertical: 50,
+    marginTop: 20,
+  },
   emptyStateText: { fontSize: 18, color: "#b88a44", fontWeight: "700" },
   emptyStateSubText: { fontSize: 14, color: "#aaa", marginTop: 4 },
 });

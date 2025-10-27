@@ -7,8 +7,12 @@ import {
   ScrollView,
   Image,
   SafeAreaView,
+  TouchableOpacity,
+  Platform,
 } from "react-native";
 import Animated, { Keyframe } from "react-native-reanimated";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
 const fleet = [
   {
@@ -67,10 +71,11 @@ const fleet = [
     ],
     image: require("../assets/images/Sprinter.jpg"),
   },
-
 ];
 
 export default function FleetScreen() {
+  const navigation = useNavigation();
+  
   const cardAnimation = (index) =>
     new Keyframe({
       0: { opacity: 0, transform: [{ translateY: 18 }, { scale: 0.98 }] },
@@ -82,6 +87,19 @@ export default function FleetScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#b88a44" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Our Fleet</Text>
+        <View style={styles.placeholder} />
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {fleet.map((car, index) => (
           <Animated.View key={index} entering={cardAnimation(index)} style={styles.card}>
@@ -108,9 +126,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0f1115",
   },
+  // Header Styles
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#2a2a2a",
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    color: "#b88a44",
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
+  },
+  placeholder: {
+    width: 40,
+  },
   scrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 28,
+    paddingTop: 16,
   },
   card: {
     backgroundColor: "#1c1e23",

@@ -8,8 +8,11 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  StatusBar,
+  SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
 // Enable layout animation for Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -55,6 +58,7 @@ const faqs = [
 ];
 
 export default function FAQScreen() {
+  const navigation = useNavigation();
   const [activeIndex, setActiveIndex] = useState(null);
 
   const toggleFAQ = (index) => {
@@ -63,39 +67,92 @@ export default function FAQScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.header}>Frequently Asked Questions</Text>
-      {faqs.map((faq, index) => (
-        <View key={index} style={styles.card}>
-          <TouchableOpacity
-            style={styles.questionRow}
-            onPress={() => toggleFAQ(index)}
-          >
-            <Text style={styles.question}>{faq.question}</Text>
-            <Ionicons
-              name={activeIndex === index ? "chevron-up" : "chevron-down"}
-              size={20}
-              color="#d4af37"
-            />
-          </TouchableOpacity>
-          {activeIndex === index && (
-            <View style={styles.answerBox}>
-              <Text style={styles.answer}>{faq.answer}</Text>
-            </View>
-          )}
-        </View>
-      ))}
-    </ScrollView>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor="black" />
+      
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#d4af37" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>FAQ</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.pageTitle}>Frequently Asked Questions</Text>
+        {faqs.map((faq, index) => (
+          <View key={index} style={styles.card}>
+            <TouchableOpacity
+              style={styles.questionRow}
+              onPress={() => toggleFAQ(index)}
+            >
+              <Text style={styles.question}>{faq.question}</Text>
+              <Ionicons
+                name={activeIndex === index ? "chevron-up" : "chevron-down"}
+                size={20}
+                color="#d4af37"
+              />
+            </TouchableOpacity>
+            {activeIndex === index && (
+              <View style={styles.answerBox}>
+                <Text style={styles.answer}>{faq.answer}</Text>
+              </View>
+            )}
+          </View>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "black",
+  },
+  // Header Styles
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    color: "#d4af37",
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
+  },
+  placeholder: {
+    width: 40,
+  },
   container: {
     flex: 1,
     backgroundColor: "black",
-    padding: 16,
   },
-  header: {
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  pageTitle: {
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 20,

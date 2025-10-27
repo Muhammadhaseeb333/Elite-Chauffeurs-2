@@ -10,14 +10,12 @@ import {
   Dimensions,
   Animated,
   StatusBar,
-  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width, height } = Dimensions.get("window");
-const ITEM_WIDTH = width * 0.46;
 const PRIMARY = '#b88a44';
 
 /** ===== Brand colors ===== */
@@ -49,7 +47,7 @@ const hardcodedCars = [
     name: "S-Class",
     image: require("../assets/images/S-class.jpg"),
     passengers: 3,
-    luggage: 4,
+    luggage: 3,
     fixedFare: 125,
     perKmRate: 1.9,
     hourlyRate: 105,
@@ -176,6 +174,11 @@ export default function CarSelectionScreen() {
     });
   };
 
+  // Navigation back handler
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
+
   const renderItem = ({ item }) => {
     const isSelected = selectedCar?.id === item.id;
     const calc = calculateFare(item);
@@ -186,16 +189,33 @@ export default function CarSelectionScreen() {
         activeOpacity={0.9}
         style={[styles.card, isSelected && styles.cardSelected]}
       >
-        <View style={styles.cardImageWell}>
-          <Image source={item.image} style={styles.cardImage} />
+        <View style={styles.cardContent}>
+          <View style={styles.cardImageWell}>
+            <Image source={item.image} style={styles.cardImage} />
+          </View>
+          
+          <View style={styles.cardDetails}>
+            <Text style={styles.cardTitle}>{item.name}</Text>
+            
+            <View style={styles.specsRow}>
+              <View style={styles.specItem}>
+                <Ionicons name="people-outline" size={16} color={COLORS.muted} />
+                <Text style={styles.specText}>{item.passengers} passengers</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Ionicons name="briefcase-outline" size={16} color={COLORS.muted} />
+                <Text style={styles.specText}>{item.luggage} luggage</Text>
+              </View>
+            </View>
+            
+            <Text style={styles.cardPrice}>
+              €{isSelected ? formatFare(fare) : formatFare(calc)}
+            </Text>
+            {hour > 0 && !isSelected && (
+              <Text style={styles.cardSub}>€{item.hourlyRate}/hour</Text>
+            )}
+          </View>
         </View>
-        <Text style={styles.cardTitle}>{item.name}</Text>
-        <Text style={styles.cardPrice}>
-          €{isSelected ? formatFare(fare) : formatFare(calc)}
-        </Text>
-        {hour > 0 && !isSelected && (
-          <Text style={styles.cardSub}>€{item.hourlyRate}/hour</Text>
-        )}
       </TouchableOpacity>
     );
   };
@@ -203,99 +223,106 @@ export default function CarSelectionScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 30 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            {/* Back Button */}
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={handleBackPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="chevron-back" size={24} color={COLORS.accent} />
+            </TouchableOpacity>
             <Text style={styles.screenTitle}>
               {tripType === "return"
                 ? "Select Return Vehicle"
                 : "Select Your Vehicle"}
             </Text>
-            <Ionicons
-              name="car-outline"
-              size={width * 0.06}
-              color={COLORS.accent}
-            />
           </View>
+          <Ionicons
+            name="car-outline"
+            size={width * 0.06}
+            color={COLORS.accent}
+          />
+        </View>
 
-          {/* Selected preview */}
-          {selectedCar && (
-            <Animated.View
-              style={[styles.preview, { transform: [{ translateY: liftAnim }] }]}
-            >
-              <View style={styles.previewImageWell}>
-                <Animated.Image
-                  source={selectedCar.image}
-                  style={[
-                    styles.previewImage,
-                    { transform: [{ scale: scaleAnim }] },
-                  ]}
+        {/* Selected preview */}
+        {selectedCar && (
+          <Animated.View
+            style={[styles.preview, { transform: [{ translateY: liftAnim }] }]}
+          >
+            <View style={styles.previewImageWell}>
+              <Animated.Image
+                source={selectedCar.image}
+                style={[
+                  styles.previewImage,
+                  { transform: [{ scale: scaleAnim }] },
+                ]}
+              />
+            </View>
+
+            <View style={styles.previewRow}>
+              <View style={styles.badge}>
+                <Ionicons
+                  name="people-outline"
+                  size={width * 0.04}
+                  color={COLORS.accent}
                 />
-              </View>
-
-              <View style={styles.previewRow}>
-                <View style={styles.badge}>
-                  <Ionicons
-                    name="people-outline"
-                    size={width * 0.04}
-                    color={COLORS.accent}
-                  />
-                  <Text style={styles.badgeText}>
-                    Max {selectedCar.passengers}
-                  </Text>
-                </View>
-                <View style={[styles.badge, { marginLeft: 10 }]}>
-                  <Ionicons
-                    name="briefcase-outline"
-                    size={width * 0.04}
-                    color={COLORS.accent}
-                  />
-                  <Text style={styles.badgeText}>
-                    Max {selectedCar.luggage}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.previewPrice}>€{formatFare(fare)}</Text>
-              {hour > 0 && (
-                <Text style={styles.previewSub}>
-                  {hour} hour(s) @ €{selectedCar.hourlyRate}/hour
+                <Text style={styles.badgeText}>
+                  Max {selectedCar.passengers}
                 </Text>
-              )}
-              {tripType === "return" && (
-                <Text style={[styles.previewSub, { color: COLORS.muted }]}>
-                  (Round trip fare x 2 applied)
+              </View>
+              <View style={[styles.badge, { marginLeft: 10 }]}>
+                <Ionicons
+                  name="briefcase-outline"
+                  size={width * 0.04}
+                  color={COLORS.accent}
+                />
+                <Text style={styles.badgeText}>
+                  Max {selectedCar.luggage}
                 </Text>
-              )}
-            </Animated.View>
-          )}
+              </View>
+            </View>
 
-          {/* Car list */}
+            <Text style={styles.previewPrice}>€{formatFare(fare)}</Text>
+            {hour > 0 && (
+              <Text style={styles.previewSub}>
+                {hour} hour(s) @ €{selectedCar.hourlyRate}/hour
+              </Text>
+            )}
+            {tripType === "return" && (
+              <Text style={[styles.previewSub, { color: COLORS.muted }]}>
+                (Round trip fare x 2 applied)
+              </Text>
+            )}
+          </Animated.View>
+        )}
+
+        {/* Car list - Vertical scroll with full-width cards */}
+        <View style={styles.carListContainer}>
+          <Text style={styles.carListTitle}>Available Vehicles</Text>
           <FlatList
             data={cars}
-            horizontal
-            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
             keyExtractor={(i) => i.id.toString()}
             renderItem={renderItem}
             contentContainerStyle={styles.list}
+            // Remove any numColumns prop completely for single column
           />
-
-          {/* Continue */}
-          <TouchableOpacity
-            onPress={handleContinue}
-            activeOpacity={0.9}
-            disabled={!selectedCar}
-            style={[styles.cta, { opacity: selectedCar ? 1 : 0.6 }]}
-          >
-            <Text style={styles.ctaText}>Continue</Text>
-          </TouchableOpacity>
         </View>
-      </ScrollView>
+
+        {/* Continue */}
+        <TouchableOpacity
+          onPress={handleContinue}
+          activeOpacity={0.9}
+          disabled={!selectedCar}
+          style={[styles.cta, { opacity: selectedCar ? 1 : 0.6 }]}
+        >
+          <Text style={styles.ctaText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -306,7 +333,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
     paddingHorizontal: width * 0.04,
-    paddingBottom: 20,
   },
   header: {
     flexDirection: "row",
@@ -315,10 +341,20 @@ const styles = StyleSheet.create({
     paddingTop: height * 0.01,
     paddingBottom: height * 0.015,
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
+  },
   screenTitle: {
     color: COLORS.accent,
     fontSize: width * 0.05,
     fontWeight: "700",
+    flex: 1,
   },
 
   /** Preview */
@@ -375,18 +411,31 @@ const styles = StyleSheet.create({
   },
   previewSub: { color: COLORS.muted, fontSize: width * 0.035, marginTop: 4 },
 
+  /** Car List Container */
+  carListContainer: {
+    flex: 1,
+    marginBottom: 20,
+  },
+  carListTitle: {
+    color: COLORS.text,
+    fontSize: width * 0.045,
+    fontWeight: "700",
+    marginBottom: 15,
+    marginLeft: 8,
+  },
+
   /** List & Cards */
-  list: { paddingVertical: 6 },
+  list: { 
+    paddingBottom: 10,
+  },
   card: {
-    width: ITEM_WIDTH,
     backgroundColor: COLORS.card,
     borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 8,
-    padding: width * 0.025,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.line,
+    width: '100%',
   },
   cardSelected: {
     borderColor: COLORS.accent,
@@ -396,33 +445,58 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 3,
   },
+  cardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   cardImageWell: {
-    width: "100%",
+    width: width * 0.3,
+    height: width * 0.2,
     borderRadius: 12,
     backgroundColor: COLORS.imageWell,
-    paddingVertical: height * 0.01,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginRight: 16,
   },
   cardImage: {
-    width: width * 0.28,
-    height: height * 0.1,
+    width: '90%',
+    height: '90%',
     resizeMode: "contain",
+  },
+  cardDetails: {
+    flex: 1,
   },
   cardTitle: {
     color: COLORS.text,
     fontWeight: "700",
-    marginTop: 2,
+    fontSize: width * 0.045,
+    marginBottom: 8,
+  },
+  specsRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+    gap: 16,
+  },
+  specItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  specText: {
+    color: COLORS.muted,
     fontSize: width * 0.035,
+    fontWeight: "500",
   },
   cardPrice: {
     color: COLORS.accent,
     fontWeight: "700",
-    marginTop: 4,
-    fontSize: width * 0.035,
+    fontSize: width * 0.04,
   },
-  cardSub: { color: COLORS.muted, fontSize: width * 0.03, marginTop: 2 },
+  cardSub: { 
+    color: COLORS.muted, 
+    fontSize: width * 0.033, 
+    marginTop: 2,
+  },
 
   /** CTA */
   cta: {
@@ -432,6 +506,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: height * 0.018,
     marginTop: 10,
+    marginBottom: 30,
   },
   ctaText: { color: "#0E1420", fontWeight: "700", fontSize: width * 0.045 },
 });
