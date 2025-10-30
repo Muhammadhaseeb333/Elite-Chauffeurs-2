@@ -15,14 +15,12 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
-import haversine from "haversine";
 import polyline from "@mapbox/polyline";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { DARK_MAP_STYLE } from "@/constants/mapStyles";
 
 const { width, height } = Dimensions.get("window");
-
 const scale = (size) => (width / 375) * size;
 const vScale = (size) => (height / 812) * size;
 
@@ -155,10 +153,7 @@ export default function ReturnMapScreen({ navigation, route }) {
     };
   }, []);
 
-  // Navigation back handler
-  const handleBackPress = () => {
-    navigation.goBack();
-  };
+  const handleBackPress = () => navigation.goBack();
 
   const centerAt = (lat, lng, delta = 0.01) => {
     mapRef.current?.animateToRegion(
@@ -167,6 +162,15 @@ export default function ReturnMapScreen({ navigation, route }) {
     );
   };
 
+  // BUILD DISPLAY TEXTS — Name + full address for inputs, clean Name for marker
+  const buildDisplayTexts = (data, details) => {
+    const mainText = data?.structured_formatting?.main_text || details?.name || "";
+    const fullText = details?.formatted_address || data?.description || "";
+    const composed = mainText ? `${mainText}${fullText ? ", " + fullText : ""}` : fullText;
+    return { mainText, fullText, composed };
+  };
+
+  // Directions + road distance
   const fetchRoute = async () => {
     if (!pickupLocation || !dropLocation) return;
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${pickupLocation.latitude},${pickupLocation.longitude}&destination=${dropLocation.latitude},${dropLocation.longitude}&key=${GOOGLE_MAPS_API_KEY}&mode=driving`;
@@ -175,14 +179,18 @@ export default function ReturnMapScreen({ navigation, route }) {
       const res = await fetch(url);
       const result = await res.json();
       if (result.routes?.length) {
-        const pts = result.routes[0].overview_polyline.points;
-        const decoded = polyline.decode(pts).map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
-        setRouteCoordinates(decoded);
-        setDistance(haversine(pickupLocation, dropLocation, { unit: "km" }).toFixed(2));
-        mapRef.current?.fitToCoordinates(decoded, {
-          edgePadding: { top: 80, right: 50, bottom: 120, left: 50 },
-          animated: true,
-        });
+        const r = result.routes[0];
+        const pts = r.overview_polyline?.points;
+        if (pts) {
+          const decoded = polyline.decode(pts).map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
+          setRouteCoordinates(decoded);
+          mapRef.current?.fitToCoordinates(decoded, {
+            edgePadding: { top: 80, right: 50, bottom: 120, left: 50 },
+            animated: true,
+          });
+        }
+        const totalMeters = (r.legs || []).reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
+        if (totalMeters > 0) setDistance((totalMeters / 1000).toFixed(2));
       } else {
         Alert.alert("Error", "Could not fetch route, please try again.");
       }
@@ -201,17 +209,18 @@ export default function ReturnMapScreen({ navigation, route }) {
     }
   }, [pickupLocation, dropLocation]);
 
+  // SELECTORS — set inputs to "Name, full address" and marker title to just Name
   const onPickupSelect = (data, details) => {
     if (!details?.geometry?.location) return;
-    const desc =
-      details?.formatted_address || data?.description || data?.structured_formatting?.main_text || "Pickup";
-    setPickupText(desc);
-    pickupRef.current?.setAddressText?.(desc);
+    const { mainText, composed } = buildDisplayTexts(data, details);
+
+    setPickupText(composed); // <- show Name + full address
+    pickupRef.current?.setAddressText?.(composed);
 
     const loc = {
       latitude: details.geometry.location.lat,
       longitude: details.geometry.location.lng,
-      name: desc,
+      name: mainText, // <- marker title stays clean
       isAirport: isAirportPlace(data, details),
     };
     setPickupLocation(loc);
@@ -229,15 +238,15 @@ export default function ReturnMapScreen({ navigation, route }) {
 
   const onDropoffSelect = (data, details) => {
     if (!details?.geometry?.location) return;
-    const desc =
-      details?.formatted_address || data?.description || data?.structured_formatting?.main_text || "Drop-off";
-    setDropoffText(desc);
-    dropoffRef.current?.setAddressText?.(desc);
+    const { mainText, composed } = buildDisplayTexts(data, details);
+
+    setDropoffText(composed); // <- show Name + full address
+    dropoffRef.current?.setAddressText?.(composed);
 
     const loc = {
       latitude: details.geometry.location.lat,
       longitude: details.geometry.location.lng,
-      name: desc,
+      name: mainText, // <- marker title stays clean
     };
     setDropLocation(loc);
 
@@ -274,16 +283,6 @@ export default function ReturnMapScreen({ navigation, route }) {
     const selectedPickup = new Date(pickupDate);
     selectedPickup.setHours(pickUpTime.getHours(), pickUpTime.getMinutes(), 0, 0);
 
-    if (selectedPickup < now) {
-      Alert.alert(
-        "Invalid Time",
-        `Please select a pickup time at least 2 hours later than current time (${minAllowed.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}).`
-      );
-      return;
-    }
     if (selectedPickup < minAllowed) {
       Alert.alert(
         "Invalid Time",
@@ -313,15 +312,10 @@ export default function ReturnMapScreen({ navigation, route }) {
         return;
       }
 
-      // NEW: 4-hour minimum difference validation
       const timeDifference = selectedReturn.getTime() - selectedPickup.getTime();
       const hoursDifference = timeDifference / (1000 * 60 * 60);
-      
       if (hoursDifference < 4) {
-        Alert.alert(
-          "Invalid Time Difference",
-          "Drop-off time must be at least 4 hours after pickup time. Please adjust your times."
-        );
+        Alert.alert("Invalid Time Difference", "Drop-off time must be at least 4 hours after pickup time.");
         return;
       }
 
@@ -396,7 +390,6 @@ export default function ReturnMapScreen({ navigation, route }) {
 
   const isContinueDisabled = !(pickupLocation && dropLocation);
 
-  // Dynamic styles based on active input
   const getPickupAutoStyles = () => ({
     container: [styles.autoCompleteContainer, activeInput === 'pickup' && styles.activeAutoCompleteContainer],
     textInput: [styles.autoCompleteTextInput, pickupFocused && styles.textInputFocusedGold],
@@ -415,7 +408,7 @@ export default function ReturnMapScreen({ navigation, route }) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
-      {/* Navigation Back Button */}
+      {/* Back */}
       <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
         <Ionicons name="chevron-back" size={24} color={COLORS.text} />
       </TouchableOpacity>
@@ -426,7 +419,7 @@ export default function ReturnMapScreen({ navigation, route }) {
         initialRegion={initialRegion}
         customMapStyle={DARK_MAP_STYLE}
         provider={PROVIDER_GOOGLE}
-        scrollEnabled
+        scrollEnabled={mapInteractive}
         zoomEnabled
         rotateEnabled
         pitchEnabled
@@ -485,14 +478,11 @@ export default function ReturnMapScreen({ navigation, route }) {
         style={styles.topScrim}
       />
 
-      {/* Panel: let touches outside flow to the map */}
+      {/* Panel */}
       <View style={styles.inputContainer} pointerEvents="box-none">
         <View style={styles.searchPanel} pointerEvents="auto">
-          {/* Pickup Location */}
-          <View style={[
-            styles.autocompleteWrapper, 
-            activeInput === 'pickup' && styles.activeAutocompleteWrapper
-          ]}>
+          {/* Pickup */}
+          <View style={[styles.autocompleteWrapper, activeInput === 'pickup' && styles.activeAutocompleteWrapper]}>
             <View style={styles.fieldLabelWrap}>
               <Text style={styles.fieldLabel}>Pickup</Text>
             </View>
@@ -505,7 +495,11 @@ export default function ReturnMapScreen({ navigation, route }) {
               timeout={15000}
               onPress={onPickupSelect}
               keyboardShouldPersistTaps="always"
-              query={{ key: GOOGLE_MAPS_API_KEY, language: "en", components: "country:ie"  }}
+              query={{
+                key: GOOGLE_MAPS_API_KEY,
+                language: "en",
+                components: "country:ie",
+              }}
               GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address", "types"] }}
               predefinedPlaces={[]}
               textInputProps={{
@@ -544,11 +538,8 @@ export default function ReturnMapScreen({ navigation, route }) {
             />
           </View>
 
-          {/* Drop-off Location */}
-          <View style={[
-            styles.autocompleteWrapper, 
-            activeInput === 'dropoff' && styles.activeAutocompleteWrapper
-          ]}>
+          {/* Drop-off */}
+          <View style={[styles.autocompleteWrapper, activeInput === 'dropoff' && styles.activeAutocompleteWrapper]}>
             <View style={[styles.fieldLabelWrap, { marginTop: 12 }]}>
               <Text style={styles.fieldLabel}>Drop-off</Text>
             </View>
@@ -561,8 +552,12 @@ export default function ReturnMapScreen({ navigation, route }) {
               timeout={15000}
               onPress={onDropoffSelect}
               keyboardShouldPersistTaps="always"
-              query={{ key: GOOGLE_MAPS_API_KEY, language: "en", components: "country:ie"  }}
-              GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address"] }}
+              query={{
+                key: GOOGLE_MAPS_API_KEY,
+                language: "en",
+                components: "country:ie",
+              }}
+              GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address", "types"] }}
               predefinedPlaces={[]}
               textInputProps={{
                 onChangeText: setDropoffText,
@@ -662,7 +657,7 @@ export default function ReturnMapScreen({ navigation, route }) {
         </View>
       </View>
 
-      {/* iOS bottom-sheet pickers (readable on dark UI) */}
+      {/* iOS bottom-sheet pickers */}
       {(showPicker.pickupDate || showPicker.pickUpTime || showPicker.dropoffDate || showPicker.dropoffTime) &&
         Platform.OS === "ios" && (
           <View style={styles.iosPickerContainer}>
@@ -809,7 +804,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#0b0d10',
     zIndex: 0,
   },
-  // Back Button
   backButton: {
     position: "absolute",
     top: vScale(35),
@@ -830,7 +824,6 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: 12 } }),
   },
 
-  // iOS DateTimePicker styles
   iosPickerContainer: {
     position: "absolute",
     bottom: 0,
@@ -854,7 +847,6 @@ const styles = StyleSheet.create({
   iosPickerDone: { color: "#0a84ff", fontSize: 17, fontWeight: "600" },
   iosPicker: { height: 200 },
 
-  // markers
   markerWrapper: { alignItems: "center", justifyContent: "flex-end" },
   markerGlow: {
     position: "absolute",
@@ -887,7 +879,6 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
 
-  // scrim
   topScrim: {
     position: "absolute",
     top: 0,
@@ -897,7 +888,6 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
 
-  // panel
   inputContainer: {
     position: "absolute",
     top: height * 0.09,
@@ -919,15 +909,9 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: 14 } }),
   },
 
-  // Autocomplete wrappers with dynamic z-index
-  autocompleteWrapper: {
-    zIndex: 1,
-  },
-  activeAutocompleteWrapper: {
-    zIndex: 10002, // Very high z-index when active
-  },
+  autocompleteWrapper: { zIndex: 1 },
+  activeAutocompleteWrapper: { zIndex: 10002 },
 
-  // labels
   fieldLabelWrap: { marginLeft: 6, marginBottom: 6 },
   fieldLabel: {
     alignSelf: "flex-start",
@@ -941,11 +925,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
 
-  // autocomplete
   autoCompleteContainer: { flex: 0 },
-  activeAutoCompleteContainer: {
-    zIndex: 10003,
-  },
+  activeAutoCompleteContainer: { zIndex: 10003 },
   autoCompleteTextInput: {
     height: height * 0.06,
     fontSize: width * 0.04,
@@ -963,8 +944,7 @@ const styles = StyleSheet.create({
   },
   textInputFocusedGold: { borderColor: COLORS.gold },
   textInputFocusedCyan: { borderColor: COLORS.cyan },
-  
-  // AutoComplete list view with dynamic positioning
+
   autoCompleteListView: {
     position: "absolute",
     top: height * 0.065,
@@ -983,10 +963,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
   },
-  activeAutoCompleteListView: {
-    zIndex: 10004, // Highest z-index for active list
-    elevation: 35,
-  },
+  activeAutoCompleteListView: { zIndex: 10004, elevation: 35 },
   autoCompleteRow: { backgroundColor: "#14181f", paddingVertical: 10, paddingHorizontal: 12 },
   autoCompleteSeparator: { height: 1, backgroundColor: COLORS.border },
 
@@ -997,11 +974,9 @@ const styles = StyleSheet.create({
   rightSide: { flexDirection: "row", alignItems: "center", paddingRight: 8 },
   clearBtn: { marginLeft: 8 },
 
-  // section headings
   sectionTitleRow: { flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom: 6, marginLeft: 2 },
   sectionTitle: { color: COLORS.muted, fontSize: width * 0.03, letterSpacing: 0.3 },
 
-  // date & time
   dateTimeRow: { flexDirection: "row", marginBottom: 4 },
   dateTimeButton: {
     flex: 1,
@@ -1022,7 +997,6 @@ const styles = StyleSheet.create({
   dateTimeInner: { flexDirection: "row", alignItems: "center" },
   dateTimeText: { fontSize: width * 0.04, color: COLORS.text },
 
-  // distance
   distanceBox: {
     position: "absolute",
     top: height * 0.72,
@@ -1041,7 +1015,6 @@ const styles = StyleSheet.create({
   },
   distanceText: { fontSize: width * 0.04, fontWeight: "700", color: COLORS.text },
 
-  // continue
   continueButton: {
     position: "absolute",
     bottom: height * 0.025,

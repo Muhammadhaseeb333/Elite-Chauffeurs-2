@@ -14,7 +14,6 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
-import haversine from "haversine";
 import polyline from "@mapbox/polyline";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
@@ -23,7 +22,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { DARK_MAP_STYLE } from "@/constants/mapStyles";
 
 const { width, height } = Dimensions.get("window");
-
 const scale = (size) => (width / 375) * size;
 const vScale = (size) => (height / 812) * size;
 
@@ -131,9 +129,8 @@ export default function MapScreen() {
 
   const [pickupFocused, setPickupFocused] = useState(false);
   const [dropoffFocused, setDropoffFocused] = useState(false);
-  const [activeInput, setActiveInput] = useState(null); // Track which input is active
+  const [activeInput, setActiveInput] = useState(null);
 
-  // Add state to track map loading and errors
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
 
@@ -141,7 +138,6 @@ export default function MapScreen() {
     AsyncStorage.removeItem("claimedDiscount").catch(console.error);
   }, []);
 
-  // Center helper
   const centerAt = (lat, lng, delta = 0.01) => {
     mapRef.current?.animateToRegion(
       { latitude: lat, longitude: lng, latitudeDelta: delta, longitudeDelta: delta },
@@ -149,21 +145,27 @@ export default function MapScreen() {
     );
   };
 
+  // --- ROUTE + DISTANCE (road distance from Directions API) ---
   const fetchRoute = async () => {
     if (!pickupLocation || !dropLocation) return;
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${pickupLocation.latitude},${pickupLocation.longitude}&destination=${dropLocation.latitude},${dropLocation.longitude}&key=${GOOGLE_MAPS_API_KEY}&mode=driving`;
     try {
       const response = await fetch(url);
       const result = await response.json();
-      if (result.routes.length) {
-        const points = result.routes[0].overview_polyline.points;
-        const decodedPoints = polyline.decode(points).map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
-        setRouteCoordinates(decodedPoints);
-        setDistance(haversine(pickupLocation, dropLocation, { unit: "km" }).toFixed(2));
-        mapRef.current?.fitToCoordinates(decodedPoints, {
-          edgePadding: { top: 80, right: 50, bottom: 120, left: 50 },
-          animated: true,
-        });
+      if (result.routes?.length) {
+        const r = result.routes[0];
+        const points = r.overview_polyline?.points;
+        if (points) {
+          const decoded = polyline.decode(points).map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
+          setRouteCoordinates(decoded);
+          mapRef.current?.fitToCoordinates(decoded, {
+            edgePadding: { top: 80, right: 50, bottom: 120, left: 50 },
+            animated: true,
+          });
+        }
+        // Sum legs distance to match Google Maps
+        const totalMeters = (r.legs || []).reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
+        if (totalMeters > 0) setDistance((totalMeters / 1000).toFixed(2));
       } else {
         Alert.alert("Error", "Could not fetch route, please try again.");
       }
@@ -176,19 +178,26 @@ export default function MapScreen() {
     if (pickupLocation && dropLocation) fetchRoute();
   }, [pickupLocation, dropLocation]);
 
+  // --- SELECT HELPERS (Name + full address for inputs) ---
+  const buildDisplayTexts = (data, details) => {
+    const mainText = data?.structured_formatting?.main_text || details?.name || "";
+    const fullText = details?.formatted_address || data?.description || "";
+    const composed = mainText ? `${mainText}${fullText ? ", " + fullText : ""}` : fullText;
+    return { mainText, fullText, composed };
+  };
+
   const onPickupSelect = (data, details) => {
     if (!details?.geometry?.location) return;
+    const { mainText, composed } = buildDisplayTexts(data, details);
 
-    const desc =
-      details?.formatted_address || data?.description || data?.structured_formatting?.main_text || "Pickup";
-
-    setPickupText(desc);
-    pickupRef.current?.setAddressText?.(desc);
+    // Show "Name, full address" in the input for clarity
+    setPickupText(composed);
+    pickupRef.current?.setAddressText?.(composed);
 
     const loc = {
       latitude: details.geometry.location.lat,
       longitude: details.geometry.location.lng,
-      name: desc,
+      name: mainText, // marker title stays clean
       isAirport: isAirportPlace(data, details),
     };
     setPickupLocation(loc);
@@ -206,15 +215,16 @@ export default function MapScreen() {
 
   const onDropoffSelect = (data, details) => {
     if (!details?.geometry?.location) return;
-    const desc =
-      details?.formatted_address || data?.description || data?.structured_formatting?.main_text || "Drop-off";
-    setDropoffText(desc);
-    dropoffRef.current?.setAddressText?.(desc);
+    const { mainText, composed } = buildDisplayTexts(data, details);
+
+    // Show "Name, full address" in the input for clarity
+    setDropoffText(composed);
+    dropoffRef.current?.setAddressText?.(composed);
 
     const loc = {
       latitude: details.geometry.location.lat,
       longitude: details.geometry.location.lng,
-      name: desc,
+      name: mainText, // marker title stays clean
     };
     setDropLocation(loc);
 
@@ -246,10 +256,8 @@ export default function MapScreen() {
       return;
     }
 
-    // 🔒 Time validation (now + 2 hours)
     const now = new Date();
     const minAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-
     const selected = new Date(pickupDate);
     selected.setHours(pickUpTime.getHours(), pickUpTime.getMinutes(), 0, 0);
 
@@ -323,7 +331,6 @@ export default function MapScreen() {
     row: styles.autoCompleteRow,
     separator: styles.autoCompleteSeparator,
   });
-
   const getDropoffAutoStyles = () => ({
     container: [styles.autoCompleteContainer, activeInput === 'dropoff' && styles.activeAutoCompleteContainer],
     textInput: [styles.autoCompleteTextInput, dropoffFocused && styles.textInputFocusedCyan],
@@ -332,23 +339,17 @@ export default function MapScreen() {
     separator: styles.autoCompleteSeparator,
   });
 
-  // iOS-specific date/time picker handling
   const onDateChange = (event, selectedDate) => {
     setShowDatePicker(Platform.OS === "ios");
-    if (selectedDate) {
-      setPickupDate(selectedDate);
-    }
+    if (selectedDate) setPickupDate(selectedDate);
   };
-
   const onTimeChange = (event, selectedTime) => {
     setShowTimePicker(Platform.OS === "ios");
     if (selectedTime) {
       const now = new Date();
       const minAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-
       const selected = new Date(pickupDate);
       selected.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-
       if (selected < minAllowed) {
         Alert.alert(
           "Invalid Time",
@@ -356,32 +357,25 @@ export default function MapScreen() {
         );
         return;
       }
-
       setpickUpTime(selectedTime);
     }
   };
 
-  // Navigation back handler
-  const handleBackPress = () => {
-    navigation.goBack();
-  };
+  const handleBackPress = () => navigation.goBack();
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
-      {/* Navigation Back Button */}
       <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
         <Ionicons name="chevron-back" size={24} color={COLORS.text} />
       </TouchableOpacity>
 
-      {/* Add a dark overlay that disappears when map is ready */}
       {!isMapReady && !mapError && (
         <View style={styles.mapOverlay}>
           <ActivityIndicator size="large" color={COLORS.gold} />
           <Text style={styles.loadingText}>Loading Map...</Text>
         </View>
       )}
-      
-      {/* Map Error Fallback */}
+
       {mapError ? (
         <View style={styles.mapFallback}>
           <Ionicons name="map-outline" size={64} color={COLORS.muted} />
@@ -393,9 +387,7 @@ export default function MapScreen() {
               setMapError(false);
               setIsMapReady(false);
               setTimeout(() => {
-                if (mapRef.current) {
-                  mapRef.current.animateToRegion(initialRegion, 1000);
-                }
+                if (mapRef.current) mapRef.current.animateToRegion(initialRegion, 1000);
               }, 500);
             }}
           >
@@ -409,17 +401,17 @@ export default function MapScreen() {
           initialRegion={initialRegion}
           customMapStyle={DARK_MAP_STYLE}
           provider={PROVIDER_GOOGLE}
-          scrollEnabled={true}
-          zoomEnabled={true}
-          rotateEnabled={true}
-          pitchEnabled={true}
+          scrollEnabled
+          zoomEnabled
+          rotateEnabled
+          pitchEnabled
           toolbarEnabled={false}
-          loadingEnabled={true}
+          loadingEnabled
           showsUserLocation={false}
           showsMyLocationButton={false}
-          showsCompass={true}
-          showsScale={true}
-          showsBuildings={true}
+          showsCompass
+          showsScale
+          showsBuildings
           showsTraffic={false}
           showsIndoors={false}
           loadingIndicatorColor={COLORS.gold}
@@ -428,9 +420,7 @@ export default function MapScreen() {
           onMapReady={() => {
             setIsMapReady(true);
             setTimeout(() => {
-              if (mapRef.current) {
-                mapRef.current.animateToRegion(initialRegion, 1000);
-              }
+              if (mapRef.current) mapRef.current.animateToRegion(initialRegion, 1000);
             }, 500);
           }}
           onError={(error) => {
@@ -484,17 +474,12 @@ export default function MapScreen() {
         </MapView>
       )}
 
-      {/* scrim behind the whole panel */}
       <LinearGradient pointerEvents="none" colors={[COLORS.scrimTopA, COLORS.scrimTopB, COLORS.scrimTopC]} style={styles.topScrim} />
 
-      {/* Panel with fields + date/time */}
       <View style={styles.inputContainer} pointerEvents="box-none">
         <View style={styles.searchPanel} pointerEvents="auto">
-          {/* Pickup Location */}
-          <View style={[
-            styles.autocompleteWrapper, 
-            activeInput === 'pickup' && styles.activeAutocompleteWrapper
-          ]}>
+          {/* Pickup */}
+          <View style={[styles.autocompleteWrapper, activeInput === 'pickup' && styles.activeAutocompleteWrapper]}>
             <View style={styles.fieldLabelWrap}>
               <Text style={styles.fieldLabel}>Pickup</Text>
             </View>
@@ -507,7 +492,11 @@ export default function MapScreen() {
               timeout={15000}
               onPress={onPickupSelect}
               keyboardShouldPersistTaps="always"
-              query={{ key: GOOGLE_MAPS_API_KEY, language: "en", components: "country:ie" }}
+              query={{
+                key: GOOGLE_MAPS_API_KEY,
+                language: "en",
+                components: "country:ie",
+              }}
               GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address", "types"] }}
               predefinedPlaces={[]}
               textInputProps={{
@@ -541,11 +530,8 @@ export default function MapScreen() {
             />
           </View>
 
-          {/* Dropoff Location */}
-          <View style={[
-            styles.autocompleteWrapper, 
-            activeInput === 'dropoff' && styles.activeAutocompleteWrapper
-          ]}>
+          {/* Drop-off */}
+          <View style={[styles.autocompleteWrapper, activeInput === 'dropoff' && styles.activeAutocompleteWrapper]}>
             <View style={[styles.fieldLabelWrap, { marginTop: 12 }]}>
               <Text style={styles.fieldLabel}>Drop-off</Text>
             </View>
@@ -558,8 +544,12 @@ export default function MapScreen() {
               timeout={15000}
               onPress={onDropoffSelect}
               keyboardShouldPersistTaps="always"
-              query={{ key: GOOGLE_MAPS_API_KEY, language: "en", components: "country:ie" }}
-              GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address"] }}
+              query={{
+                key: GOOGLE_MAPS_API_KEY,
+                language: "en",
+                components: "country:ie",
+              }}
+              GooglePlacesDetailsQuery={{ fields: ["geometry", "name", "formatted_address", "types"] }}
               predefinedPlaces={[]}
               textInputProps={{
                 onChangeText: setDropoffText,
@@ -612,7 +602,6 @@ export default function MapScreen() {
         </View>
       </View>
 
-      {/* iOS-specific DateTimePicker handling */}
       {(showDatePicker || showTimePicker) && Platform.OS === "ios" && (
         <View style={styles.iosPickerContainer}>
           <View style={styles.iosPickerHeader}>
@@ -661,7 +650,6 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Android DateTimePicker (appears as modal) */}
       {showDatePicker && Platform.OS === "android" && (
         <DateTimePicker value={pickupDate} mode="date" display="default" minimumDate={new Date()} onChange={onDateChange} />
       )}
@@ -693,7 +681,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#0b0d10',
     zIndex: 0,
   },
-  // Back Button
   backButton: {
     position: "absolute",
     top: vScale(30),
@@ -713,7 +700,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     ...Platform.select({ android: { elevation: 12 } }),
   },
-  // Map loading overlay
   mapOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#0b0d10',
@@ -726,7 +712,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
   },
-  // Map error fallback
   mapFallback: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: COLORS.bg,
@@ -759,8 +744,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // iOS DateTimePicker styles
   iosPickerContainer: {
     position: "absolute",
     bottom: 0,
@@ -779,25 +762,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#2c2c2e",
   },
-  iosPickerCancel: {
-    color: "#0a84ff",
-    fontSize: 17,
-  },
-  iosPickerTitle: {
-    color: COLORS.text,
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  iosPickerDone: {
-    color: "#0a84ff",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  iosPicker: {
-    height: 200,
-  },
+  iosPickerCancel: { color: "#0a84ff", fontSize: 17 },
+  iosPickerTitle: { color: COLORS.text, fontSize: 17, fontWeight: "600" },
+  iosPickerDone: { color: "#0a84ff", fontSize: 17, fontWeight: "600" },
+  iosPicker: { height: 200 },
 
-  // markers
   markerWrapper: { alignItems: "center", justifyContent: "flex-end" },
   markerGlow: { position: "absolute", bottom: vScale(12), width: scale(28), height: scale(28), borderRadius: scale(14) },
   markerInner: {
@@ -825,10 +794,8 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
 
-  // scrim
   topScrim: { position: "absolute", top: 0, left: 0, right: 0, height: vScale(280), zIndex: 1 },
 
-  // inputs panel
   inputContainer: {
     position: "absolute",
     top: vScale(70),
@@ -850,13 +817,8 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: 14 } }),
   },
 
-  // Autocomplete wrappers with dynamic z-index
-  autocompleteWrapper: {
-    zIndex: 1,
-  },
-  activeAutocompleteWrapper: {
-    zIndex: 10002, // Very high z-index when active
-  },
+  autocompleteWrapper: { zIndex: 1 },
+  activeAutocompleteWrapper: { zIndex: 10002 },
 
   fieldLabelWrap: { marginLeft: scale(6), marginBottom: scale(6) },
   fieldLabel: {
@@ -872,9 +834,7 @@ const styles = StyleSheet.create({
   },
 
   autoCompleteContainer: { flex: 0 },
-  activeAutoCompleteContainer: {
-    zIndex: 10003,
-  },
+  activeAutoCompleteContainer: { zIndex: 10003 },
   autoCompleteTextInput: {
     height: vScale(50),
     fontSize: scale(16),
@@ -892,8 +852,7 @@ const styles = StyleSheet.create({
   },
   textInputFocusedGold: { borderColor: COLORS.gold },
   textInputFocusedCyan: { borderColor: COLORS.cyan },
-  
-  // AutoComplete list view with dynamic positioning
+
   autoCompleteListView: {
     position: "absolute",
     top: vScale(52),
@@ -918,15 +877,10 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
       },
-      android: {
-        elevation: 30,
-      },
+      android: { elevation: 30 },
     }),
   },
-  activeAutoCompleteListView: {
-    zIndex: 10004, // Highest z-index for active list
-    elevation: 35,
-  },
+  activeAutoCompleteListView: { zIndex: 10004, elevation: 35 },
   autoCompleteRow: { backgroundColor: "#14181f", paddingVertical: vScale(10), paddingHorizontal: scale(12) },
   autoCompleteSeparator: { height: 1, backgroundColor: COLORS.border },
 
@@ -937,7 +891,6 @@ const styles = StyleSheet.create({
   rightSide: { flexDirection: "row", alignItems: "center", paddingRight: scale(8) },
   clearBtn: { marginLeft: scale(8) },
 
-  // date & time inside panel
   dateTimeRow: { flexDirection: "row", marginTop: vScale(12) },
   dateTimeButton: {
     flex: 1,
@@ -955,20 +908,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     ...Platform.select({ android: { elevation: 6 } }),
   },
-  dateTimeInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "nowrap",
-  },
-  dateTimeText: {
-    fontSize: scale(15),
-    color: COLORS.text,
-    flexShrink: 1,
-    maxWidth: width * 0.35,
-  },
+  dateTimeInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "nowrap" },
+  dateTimeText: { fontSize: scale(15), color: COLORS.text, flexShrink: 1, maxWidth: width * 0.35 },
 
-  // distance box
   distanceBox: {
     position: "absolute",
     top: height * 0.71,
@@ -987,7 +929,6 @@ const styles = StyleSheet.create({
   },
   distanceText: { fontSize: scale(16), fontWeight: "700", color: COLORS.text },
 
-  // continue
   continueButton: {
     position: "absolute",
     bottom: vScale(20),

@@ -22,7 +22,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { DARK_MAP_STYLE } from "@/constants/mapStyles";
 
 const { width, height } = Dimensions.get("window");
-
 const scale = (size) => (width / 375) * size;
 const vScale = (size) => (height / 812) * size;
 
@@ -37,7 +36,6 @@ const COLORS = {
   borderStrong: "#3a3f47",
   input: "#2c2f35",
   shadow: "#000",
-
   gold: "#FFC857",
   cyan: "#4FC3F7",
   rim: "#0b0d10",
@@ -55,7 +53,7 @@ const initialRegion = {
   longitudeDelta: 0.1,
 };
 
-// Icon for Places predictions (parity with MapScreen)
+// Icon for Places predictions (parity with other screens)
 const pickIconForPrediction = (p) => {
   const types = (p?.types || []).map((t) => String(t).toLowerCase());
   const text = [
@@ -70,9 +68,9 @@ const pickIconForPrediction = (p) => {
     .toLowerCase();
 
   const has = (needles) => needles.some((k) => text.includes(k));
-  if (has(["airport", "terminal"])) return { name: "airplane", color: COLORS.cyan };
+  if (has(["airport", "air base", "airfield", "terminal"])) return { name: "airplane", color: COLORS.cyan };
   if (has(["hospital", "clinic", "medical", "pharmacy", "doctor"])) return { name: "medkit", color: "#FF6B6B" };
-  if (has(["restaurant", "food", "cafe", "bakery", "bar"])) return { name: "restaurant", color: "#FFD166" };
+  if (has(["restaurant", "food", "cafe", "bakery", "bar", "eatery"])) return { name: "restaurant", color: "#FFD166" };
   if (has(["hotel", "lodging", "guest house", "motel"])) return { name: "home", color: "#A78BFA" };
   if (has(["park", "garden", "zoo"])) return { name: "leaf", color: "#81C784" };
   if (has(["school", "university", "college", "institute"])) return { name: "school", color: "#90CAF9" };
@@ -104,6 +102,14 @@ const isAirportPlace = (data, details) => {
   return /\b(airport|terminal|air\s?base|airfield)\b/.test(text);
 };
 
+// Compose display strings like the other screens: Name + full address for inputs
+const buildDisplayTexts = (data, details) => {
+  const mainText = data?.structured_formatting?.main_text || details?.name || "";
+  const fullText = details?.formatted_address || data?.description || "";
+  const composed = mainText ? `${mainText}${fullText ? ", " + fullText : ""}` : fullText;
+  return { mainText, fullText, composed };
+};
+
 export default function HourlyBookingMapScreen({ navigation }) {
   const autoCompleteRef = useRef(null);
   const mapRef = useRef(null);
@@ -120,14 +126,20 @@ export default function HourlyBookingMapScreen({ navigation }) {
   const [isEditingHours, setIsEditingHours] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [pickupFocused, setPickupFocused] = useState(false);
-  const [activeInput, setActiveInput] = useState(null); // Track which input is active
+  const [activeInput, setActiveInput] = useState(null);
+  const [mapInteractive, setMapInteractive] = useState(true);
 
-  // Navigation back handler
-  const handleBackPress = () => {
-    navigation.goBack();
-  };
+  useEffect(() => {
+    const sh = Keyboard.addListener("keyboardDidShow", () => setMapInteractive(false));
+    const hd = Keyboard.addListener("keyboardDidHide", () => setMapInteractive(true));
+    return () => {
+      sh.remove();
+      hd.remove();
+    };
+  }, []);
 
-  // Center helper
+  const handleBackPress = () => navigation.goBack();
+
   const centerAt = (lat, lng, delta = 0.012) => {
     mapRef.current?.animateToRegion(
       { latitude: lat, longitude: lng, latitudeDelta: delta, longitudeDelta: delta },
@@ -158,21 +170,18 @@ export default function HourlyBookingMapScreen({ navigation }) {
       setIsLoading(true);
       if (!data || !details?.geometry?.location) throw new Error("Invalid location data");
 
-      const desc =
-        details?.formatted_address ||
-        data?.description ||
-        data?.structured_formatting?.main_text ||
-        "Selected Location";
+      const { mainText, composed } = buildDisplayTexts(data, details);
 
       const location = {
-        name: desc,
+        name: mainText || "Selected Location", // marker title stays clean
         latitude: details.geometry.location.lat,
         longitude: details.geometry.location.lng,
         isAirport: isAirportPlace(data, details),
       };
 
-      setPickupText(desc);
-      autoCompleteRef.current?.setAddressText?.(desc);
+      // Show "Name, full address" in the input for clarity
+      setPickupText(composed);
+      autoCompleteRef.current?.setAddressText?.(composed);
 
       setPickupLocation(location);
       centerAt(location.latitude, location.longitude, 0.012);
@@ -249,7 +258,6 @@ export default function HourlyBookingMapScreen({ navigation }) {
 
   const isContinueDisabled = !pickupLocation;
 
-  // Suggestion row with icon
   const renderSuggestionRow = (item) => {
     const { name, color } = pickIconForPrediction(item);
     const main =
@@ -272,7 +280,6 @@ export default function HourlyBookingMapScreen({ navigation }) {
     );
   };
 
-  // Dynamic styles based on active input
   const getAutoStyles = () => ({
     container: [styles.autoCompleteContainer, activeInput === 'pickup' && styles.activeAutoCompleteContainer],
     textInput: [styles.autoCompleteTextInput, pickupFocused && styles.textInputFocusedGold],
@@ -283,7 +290,7 @@ export default function HourlyBookingMapScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
-      {/* Navigation Back Button */}
+      {/* Back */}
       <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
         <Ionicons name="chevron-back" size={24} color={COLORS.text} />
       </TouchableOpacity>
@@ -294,20 +301,22 @@ export default function HourlyBookingMapScreen({ navigation }) {
         initialRegion={initialRegion}
         provider={PROVIDER_GOOGLE}
         customMapStyle={DARK_MAP_STYLE}
-        scrollEnabled
+        scrollEnabled={mapInteractive}
         zoomEnabled
         rotateEnabled
         pitchEnabled
         toolbarEnabled={false}
-        onMapReady={() => console.log("Map is ready")}
-        onError={(error) => console.log("Map error:", error)}
         onTouchStart={() => {
           autoCompleteRef.current?.blur?.();
           setActiveInput(null);
         }}
       >
         {pickupLocation && (
-          <Marker coordinate={pickupLocation} title={pickupLocation.name} pinColor={COLORS.gold} />
+          <Marker
+            coordinate={pickupLocation}
+            title={pickupLocation.name}
+            pinColor={COLORS.gold}
+          />
         )}
       </MapView>
 
@@ -318,14 +327,11 @@ export default function HourlyBookingMapScreen({ navigation }) {
         style={styles.topScrim}
       />
 
-      {/* Panel: allow touches outside to hit the map */}
+      {/* Panel */}
       <View style={styles.inputContainer} pointerEvents="box-none">
         <View style={styles.searchPanel} pointerEvents="auto">
-          {/* Pickup Location with dynamic z-index wrapper */}
-          <View style={[
-            styles.autocompleteWrapper, 
-            activeInput === 'pickup' && styles.activeAutocompleteWrapper
-          ]}>
+          {/* Pickup Location */}
+          <View style={[styles.autocompleteWrapper, activeInput === 'pickup' && styles.activeAutocompleteWrapper]}>
             <View style={styles.fieldLabelWrap}>
               <Text style={styles.fieldLabel}>Pickup</Text>
             </View>
@@ -342,8 +348,7 @@ export default function HourlyBookingMapScreen({ navigation }) {
               query={{
                 key: GOOGLE_MAPS_API_KEY,
                 language: "en",
-                types: "geocode",
-                components: "country:ie" 
+                components: "country:ie", // allow all types incl. airports
               }}
               GooglePlacesDetailsQuery={{
                 fields: ["geometry", "name", "formatted_address", "types"],
@@ -386,7 +391,7 @@ export default function HourlyBookingMapScreen({ navigation }) {
             />
           </View>
 
-          {/* Date & Time (inside panel) */}
+          {/* Date & Time */}
           <View style={styles.dateTimeRow}>
             <TouchableOpacity onPress={() => setShowDatePicker(true)} style={[styles.dateTimeButton, styles.boxOutline]}>
               <View style={styles.dateTimeInner}>
@@ -407,7 +412,7 @@ export default function HourlyBookingMapScreen({ navigation }) {
         </View>
       </View>
 
-      {/* iOS-specific DateTimePicker with dark theme + Cancel/Done bar */}
+      {/* iOS DateTimePicker with dark theme */}
       {(showDatePicker || showTimePicker) && Platform.OS === "ios" && (
         <View style={styles.iosPickerContainer}>
           <View style={styles.iosPickerHeader}>
@@ -448,7 +453,7 @@ export default function HourlyBookingMapScreen({ navigation }) {
               mode="time"
               display="spinner"
               is24Hour
-              onChange={(_, t) => t && setpickUpTime(t)}
+              onChange={_, t => t && setpickUpTime(t)}
               style={styles.iosPicker}
               themeVariant="dark"
               textColor={COLORS.text}
@@ -457,7 +462,7 @@ export default function HourlyBookingMapScreen({ navigation }) {
         </View>
       )}
 
-      {/* Android DateTimePicker (system modal) */}
+      {/* Android DateTimePicker */}
       {showDatePicker && Platform.OS === "android" && (
         <DateTimePicker
           value={pickupDate}
@@ -547,7 +552,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#0b0d10',
     zIndex: 0,
   },
-  // Back Button
   backButton: {
     position: "absolute",
     top: vScale(30),
@@ -568,10 +572,8 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: 12 } }),
   },
 
-  // scrim
   topScrim: { position: "absolute", top: 0, left: 0, right: 0, height: 280, zIndex: 1 },
 
-  // iOS DateTimePicker styles (match MapScreen)
   iosPickerContainer: {
     position: "absolute",
     bottom: 0,
@@ -595,7 +597,6 @@ const styles = StyleSheet.create({
   iosPickerDone: { color: "#0a84ff", fontSize: 17, fontWeight: "600" },
   iosPicker: { height: 200 },
 
-  // Panel container
   inputContainer: {
     position: "absolute",
     top: 75,
@@ -618,12 +619,8 @@ const styles = StyleSheet.create({
   },
 
   // Autocomplete wrappers with dynamic z-index
-  autocompleteWrapper: {
-    zIndex: 1,
-  },
-  activeAutocompleteWrapper: {
-    zIndex: 10002, // Very high z-index when active
-  },
+  autocompleteWrapper: { zIndex: 1 },
+  activeAutocompleteWrapper: { zIndex: 10002 },
 
   // Field label
   fieldLabelWrap: { marginLeft: 6, marginBottom: 6 },
@@ -641,9 +638,7 @@ const styles = StyleSheet.create({
 
   // Autocomplete
   autoCompleteContainer: { flex: 0 },
-  activeAutoCompleteContainer: {
-    zIndex: 10003,
-  },
+  activeAutoCompleteContainer: { zIndex: 10003 },
   autoCompleteTextInput: {
     height: 50,
     fontSize: 16,
@@ -660,8 +655,7 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: 6 } }),
   },
   textInputFocusedGold: { borderColor: COLORS.gold },
-  
-  // AutoComplete list view with dynamic positioning
+
   autoCompleteListView: {
     position: "absolute",
     top: 52,
@@ -680,10 +674,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
   },
-  activeAutoCompleteListView: {
-    zIndex: 10004, // Highest z-index for active list
-    elevation: 35,
-  },
+  activeAutoCompleteListView: { zIndex: 10004, elevation: 35 },
   autoCompleteRow: { backgroundColor: "#14181f", paddingVertical: 10, paddingHorizontal: 12 },
   autoCompleteSeparator: { height: 1, backgroundColor: "#14181f" },
 
@@ -803,9 +794,5 @@ const styles = StyleSheet.create({
   },
   continueButtonText: { fontSize: 16, color: "#0f1115", fontWeight: "800" },
 
-  // Reusable stronger outline
-  boxOutline: {
-    borderWidth: 2,
-    borderColor: COLORS.borderStrong,
-  },
+  boxOutline: { borderWidth: 2, borderColor: COLORS.borderStrong },
 });
